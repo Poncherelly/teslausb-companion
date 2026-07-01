@@ -50,3 +50,23 @@ period this project was being designed.
    limitation on certain car/port combinations — see RELIABILITY.md.
    Worth tracking community reports as this project gets built, since
    the answer may differ across Tesla models/years/firmware.
+
+9. **RESOLVED (2026-07-01), confirmed against real hardware**: Node.js
+   on a Pi Zero W running the stock teslausb image (Raspberry Pi OS
+   10 "Buster", ARMv6). Official Node.js binaries dropped ARMv6
+   support years ago; the community `unofficial-builds.nodejs.org`
+   project still publishes ARMv6 binaries up to current versions, but
+   they're compiled against a newer `libstdc++`/glibc than Buster
+   ships — versions above v18.x fail at runtime with
+   `GLIBCXX_3.4.30 not found` even though the architecture matches.
+   **v18.20.4 is the practical ceiling on this exact OS/hardware
+   combo.** Relevant to item 4 above (weaker hardware may also mean an
+   older, EOL Node runtime — factor that into any security posture
+   decisions for on-Pi encryption).
+
+10. **Buster's default apt mirror (`raspbian.raspberrypi.org`) is gone
+    (404) now that Buster is EOL** — any Pi still running the original
+    teslausb image needs `/etc/apt/sources.list` repointed to
+    `http://legacy.raspbian.org/raspbian/` before `apt-get update` will
+    work at all. Needed to install `bluez`/`libbluetooth-dev` (not
+    present by default on the teslausb image) for BLE peripheral work.

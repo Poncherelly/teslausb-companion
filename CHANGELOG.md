@@ -26,3 +26,20 @@ All notable changes to this project are documented here, following
   "incompatible" — Expo Go's public release lags newly-shipped SDKs).
   `source=pi|archive` filtering from docs/API.md is not implemented
   yet (no real archive-sync process exists to distinguish them).
+
+### Discovered (real-hardware testing, 2026-07-01)
+
+- teslausb's actual headless WiFi reconfiguration mechanism: it does
+  **not** use the generic Raspberry Pi OS "drop wpa_supplicant.conf on
+  the boot partition" trick once initial setup has completed. It reads
+  `SSID`/`WIFIPASS` from `teslausb_setup_variables.conf` and gates
+  (re)configuration on the absence of a `WIFI_ENABLED` marker file —
+  both live on the boot partition (symlinked to `/teslausb` on the
+  running OS). To change WiFi after first setup: add a fresh
+  `teslausb_setup_variables.conf` with the new credentials, delete
+  `WIFI_ENABLED`, reboot. Underscores why the BLE pairing wizard
+  (docs/BLE_PROTOCOL.md) is worth prioritizing — this manual process is
+  exactly what it replaces.
+- Real-hardware Node.js/apt/BlueZ constraints on Pi Zero W + Buster —
+  see CLAUDE.md "Real-hardware constraints" and
+  docs/OPEN_QUESTIONS.md #9-10.

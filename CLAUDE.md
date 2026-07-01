@@ -86,3 +86,30 @@ Rationale: one language (JavaScript/TypeScript) across both halves,
 chosen to match the maintainer's existing Node.js experience rather
 than introducing a second language (e.g. Dart for Flutter) purely for
 the mobile side.
+
+### Real-hardware constraints (confirmed 2026-07-01, see docs/OPEN_QUESTIONS.md #9-10)
+
+The maintainer's test unit is a Pi Zero W running the stock teslausb
+image (Raspberry Pi OS 10 "Buster", ARMv6, EOL). This isn't
+necessarily every user's hardware, but it's the actual floor the
+product needs to keep working on:
+
+- **Node v18.20.4 (via `unofficial-builds.nodejs.org`) is the newest
+  Node that runs on this exact OS/hardware combo.** Newer versions have
+  ARMv6 binaries but are compiled against a `libstdc++` too new for
+  Buster and fail at runtime. Official nodejs.org binaries dropped
+  ARMv6 entirely years ago. Don't assume `apt install nodejs` or a
+  recent official binary will work when writing install docs/scripts —
+  test against the oldest supported OS image, not just current
+  Raspberry Pi OS.
+- **Buster's default apt mirror is dead (404).** Any install
+  script/doc for this hardware generation needs
+  `deb http://legacy.raspbian.org/raspbian/ buster main contrib
+  non-free rpi` in `/etc/apt/sources.list`, not the stock mirror.
+- **`bluez`/`libbluetooth-dev` are not installed by default** on the
+  teslausb image (it doesn't use Bluetooth itself) — BLE peripheral
+  work needs these installed explicitly before `@abandonware/bleno`'s
+  native module will even compile.
+- The root filesystem is **read-only by default** (teslausb's own
+  crash-safety design, see RELIABILITY.md) — any setup step that writes
+  to disk needs `sudo /root/bin/remountfs_rw` first.
