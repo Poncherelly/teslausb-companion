@@ -70,3 +70,20 @@ period this project was being designed.
     `http://legacy.raspbian.org/raspbian/` before `apt-get update` will
     work at all. Needed to install `bluez`/`libbluetooth-dev` (not
     present by default on the teslausb image) for BLE peripheral work.
+
+11. **RESOLVED (2026-07-01)**: `@abandonware/bleno` failed to compile
+    on this same Pi Zero W/Buster combo even with `libbluetooth-dev`
+    installed. Root cause wasn't the C++ compiler at all — it was
+    `node-gyp`'s bundled `gyp` build tool: versions from roughly
+    late-2023 onward use a Python `:=` walrus operator (Python 3.8+
+    syntax) in their own source, and Buster only ships Python 3.7.3.
+    Fixed by pinning `"overrides": {"node-gyp": "9.4.1"}` in
+    `pi-service/package.json` (see the file for why), which forces the
+    whole dependency tree (including transitive native-module deps
+    like `bluetooth-hci-socket`) onto a node-gyp version old enough to
+    run on Python 3.7. Also needed: `pi-bluetooth` (not installed by
+    default; the Zero W's onboard BT chip is UART-attached and needs
+    this package's `hciuart` service to initialize `hci0` at all) and
+    adding the runtime user to the `bluetooth` group (otherwise
+    `bluetoothd` is invisible to non-root D-Bus callers even though the
+    controller is genuinely present).

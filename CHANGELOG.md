@@ -43,3 +43,11 @@ All notable changes to this project are documented here, following
 - Real-hardware Node.js/apt/BlueZ constraints on Pi Zero W + Buster —
   see CLAUDE.md "Real-hardware constraints" and
   docs/OPEN_QUESTIONS.md #9-10.
+- Got `@abandonware/bleno` actually compiling and loading on the real
+  Pi Zero W. Needed: `pi-bluetooth` package (Zero W's BT chip is
+  UART-attached and otherwise never initializes), the `pi` user added
+  to the `bluetooth` group, and — the real blocker — pinning
+  `node-gyp` to `9.4.1` via `overrides` in `pi-service/package.json`,
+  since newer `node-gyp` versions require Python 3.8+ and Buster only
+  has 3.7. See docs/OPEN_QUESTIONS.md #11. No BLE peripheral code
+  written yet — this just proves the module can load on this hardware.

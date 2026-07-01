@@ -15,5 +15,8 @@
   },
   "optionalDependencies": {
     "@abandonware/bleno": "^0.6.1"
+  },
+  "overrides": {
+    "node-gyp": "9.4.1"
   }
 }
