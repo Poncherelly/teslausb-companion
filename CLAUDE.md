@@ -68,7 +68,21 @@ as the source of truth for implementation details.
 
 ## Tech stack
 
-Not yet decided. Original teslausb is bash-heavy with a JS/HTML/Python web
-UI (`teslausb-www`). This project's Pi-side service (BLE + REST API) and
-the mobile app framework are open choices — flag this explicitly when
-picking up implementation work rather than assuming a stack.
+Decided 2026-07-01 (see [CHANGELOG.md](CHANGELOG.md)):
+
+- **Pi service** (`pi-service/`) — Node.js + Express (REST API),
+  `@abandonware/bleno` for the BLE GATT peripheral role (the actively
+  maintained fork; the original `bleno` is unmaintained and breaks on
+  modern BlueZ), Server-Sent Events for `GET /events`, Node's built-in
+  `crypto` module for on-device encryption.
+- **Mobile app** (`app/`) — React Native via Expo, using a custom dev
+  client / EAS Build (not classic Expo Go, which doesn't support the
+  BLE native module), `react-native-ble-plx` for the BLE central role.
+  Targets both iOS and Android — the maintainer already holds both
+  Apple and Google developer accounts from another project, so this
+  introduces no new recurring cost under the zero-cost constraint above.
+
+Rationale: one language (JavaScript/TypeScript) across both halves,
+chosen to match the maintainer's existing Node.js experience rather
+than introducing a second language (e.g. Dart for Flutter) purely for
+the mobile side.
