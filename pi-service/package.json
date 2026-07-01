@@ -1,0 +1,18 @@
+{
+  "name": "teslausb-companion-pi-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BLE provisioning + REST API service running alongside teslausb on the Pi",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "optionalDependencies": {
+    "@abandonware/bleno": "^0.6.1"
+  }
+}

@@ -15,5 +15,17 @@ Thumbs.db
 # Logs
 *.log
 
-# Placeholder — will be replaced once the mobile app / Pi-service
-# tech stack is chosen (see CLAUDE.md: "Tech stack" section).
+# Node.js (pi-service/, app/)
+node_modules/
+npm-debug.log*
+
+# Expo (app/)
+app/.expo/
+app/dist/
+app/web-build/
+*.orig.*
+app/*.jks
+app/*.p8
+app/*.p12
+app/*.key
+app/*.mobileprovision
