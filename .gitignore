@@ -1,0 +1,19 @@
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Env / secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Logs
+*.log
+
+# Placeholder — will be replaced once the mobile app / Pi-service
+# tech stack is chosen (see CLAUDE.md: "Tech stack" section).
