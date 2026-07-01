@@ -1,8 +1,10 @@
 import express from "express";
+import cors from "cors";
 import { setupRouter } from "./routes/setup.js";
 import { clipsRouter } from "./routes/clips.js";
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 app.get("/system/status", (req, res) => {

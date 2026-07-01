@@ -6,6 +6,10 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Claude Code local state (top-level only; app/.claude/ ships intentionally
+# with the Expo template and is tracked)
+/.claude/
+
 # Env / secrets
 .env
 .env.*
