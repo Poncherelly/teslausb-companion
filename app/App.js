@@ -4,7 +4,9 @@ import { Image, Modal, Pressable, SectionList, StyleSheet, Text, View } from 're
 import { useVideoPlayer, VideoView } from 'expo-video';
 import BlePairingScreen from './BlePairingScreen';
 import MusicBrowser from './MusicBrowser';
+import SettingsScreen from './SettingsScreen';
 import { PI_SERVICE_URL } from './config';
+import { useTheme } from './theme';
 
 // Order/labels match Tesla's own in-car dashcam tab convention.
 // See docs/ARCHITECTURE.md "Two-tab clip browser".
@@ -25,7 +27,7 @@ function groupIntoSections(clips) {
 // RecentClips has none — see pi-service/src/lib/clips-scan.js.
 const HAS_THUMBNAIL = new Set(['saved', 'sentry']);
 
-function ClipRow({ item, onPress }) {
+function ClipRow({ item, onPress, styles }) {
   return (
     <Pressable style={styles.row} onPress={() => onPress(item)}>
       {HAS_THUMBNAIL.has(item.category) ? (
@@ -50,7 +52,7 @@ function ClipRow({ item, onPress }) {
 // supports HTTP Range requests (confirmed against the real Pi), which
 // is what lets the player seek without downloading the whole file
 // first.
-function VideoPlayerModal({ clip, onClose }) {
+function VideoPlayerModal({ clip, onClose, styles }) {
   const player = useVideoPlayer(
     clip ? `${PI_SERVICE_URL}/clips/${clip.id}/download` : null,
     (p) => {
@@ -72,7 +74,7 @@ function VideoPlayerModal({ clip, onClose }) {
   );
 }
 
-function SectionHeader({ section }) {
+function SectionHeader({ section, styles }) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{section.title}</Text>
@@ -82,6 +84,8 @@ function SectionHeader({ section }) {
 }
 
 export default function App() {
+  const theme = useTheme();
+  const styles = createStyles(theme);
   const [tab, setTab] = useState('device');
   const [clips, setClips] = useState([]);
   const [error, setError] = useState(null);
@@ -125,8 +129,13 @@ export default function App() {
             Music
           </Text>
         </Pressable>
-        <Pressable style={styles.setupButton} onPress={() => setPairingVisible(true)}>
-          <Text style={styles.setupButtonText}>+ Device</Text>
+        <Pressable
+          style={[styles.tab, tab === 'settings' && styles.tabActive]}
+          onPress={() => setTab('settings')}
+        >
+          <Text style={[styles.tabLabel, tab === 'settings' && styles.tabLabelActive]}>
+            Settings
+          </Text>
         </Pressable>
       </View>
 
@@ -137,8 +146,8 @@ export default function App() {
           style={styles.list}
           sections={groupIntoSections(clips)}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <ClipRow item={item} onPress={setPlayingClip} />}
-          renderSectionHeader={SectionHeader}
+          renderItem={({ item }) => <ClipRow item={item} onPress={setPlayingClip} styles={styles} />}
+          renderSectionHeader={({ section }) => <SectionHeader section={section} styles={styles} />}
           stickySectionHeadersEnabled
         />
       )}
@@ -151,139 +160,135 @@ export default function App() {
         </View>
       )}
       {tab === 'music' && <MusicBrowser />}
+      {tab === 'settings' && <SettingsScreen onSetupDevice={() => setPairingVisible(true)} />}
 
-      <VideoPlayerModal clip={playingClip} onClose={() => setPlayingClip(null)} />
+      <VideoPlayerModal clip={playingClip} onClose={() => setPlayingClip(null)} styles={styles} />
       <BlePairingScreen visible={pairingVisible} onClose={() => setPairingVisible(false)} />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    paddingTop: 60,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive: {
-    borderBottomColor: '#111',
-  },
-  tabLabel: {
-    fontSize: 15,
-    color: '#888',
-  },
-  tabLabelActive: {
-    color: '#111',
-    fontWeight: '600',
-  },
-  setupButton: {
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  setupButtonText: {
-    fontSize: 14,
-    color: '#0066cc',
-  },
-  error: {
-    color: 'red',
-    marginHorizontal: 16,
-    marginBottom: 12,
-  },
-  list: {
-    flex: 1,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: '#f7f7f7',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#444',
-    textTransform: 'uppercase',
-  },
-  sectionCount: {
-    fontSize: 13,
-    color: '#888',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  thumbnail: {
-    width: 64,
-    height: 48,
-    borderRadius: 4,
-    backgroundColor: '#eee',
-    marginRight: 12,
-  },
-  thumbnailPlaceholder: {
-    width: 64,
-    height: 48,
-    borderRadius: 4,
-    backgroundColor: '#f2f2f2',
-    marginRight: 12,
-  },
-  rowText: {
-    flex: 1,
-  },
-  filename: {
-    fontSize: 15,
-  },
-  meta: {
-    fontSize: 13,
-    color: '#666',
-  },
-  placeholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  placeholderText: {
-    fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
-  },
-  playerContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-    justifyContent: 'center',
-  },
-  playerClose: {
-    position: 'absolute',
-    top: 50,
-    right: 16,
-    zIndex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 6,
-  },
-  playerCloseText: {
-    color: '#fff',
-    fontSize: 15,
-  },
-  playerVideo: {
-    width: '100%',
-    height: '100%',
-  },
-});
+function createStyles(theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+      paddingTop: 60,
+    },
+    tabBar: {
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+      marginBottom: 8,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    tabActive: {
+      borderBottomColor: theme.text,
+    },
+    tabLabel: {
+      fontSize: 15,
+      color: theme.textMuted,
+    },
+    tabLabelActive: {
+      color: theme.text,
+      fontWeight: '600',
+    },
+    error: {
+      color: theme.error,
+      marginHorizontal: 16,
+      marginBottom: 12,
+    },
+    list: {
+      flex: 1,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      backgroundColor: theme.surface,
+      paddingHorizontal: 16,
+      paddingVertical: 6,
+    },
+    sectionTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.textSecondary,
+      textTransform: 'uppercase',
+    },
+    sectionCount: {
+      fontSize: 13,
+      color: theme.textMuted,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    thumbnail: {
+      width: 64,
+      height: 48,
+      borderRadius: 4,
+      backgroundColor: theme.surface,
+      marginRight: 12,
+    },
+    thumbnailPlaceholder: {
+      width: 64,
+      height: 48,
+      borderRadius: 4,
+      backgroundColor: theme.placeholder,
+      marginRight: 12,
+    },
+    rowText: {
+      flex: 1,
+    },
+    filename: {
+      fontSize: 15,
+      color: theme.text,
+    },
+    meta: {
+      fontSize: 13,
+      color: theme.textSecondary,
+    },
+    placeholder: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 32,
+    },
+    placeholderText: {
+      fontSize: 14,
+      color: theme.textMuted,
+      textAlign: 'center',
+    },
+    playerContainer: {
+      flex: 1,
+      backgroundColor: '#000',
+      justifyContent: 'center',
+    },
+    playerClose: {
+      position: 'absolute',
+      top: 50,
+      right: 16,
+      zIndex: 1,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      borderRadius: 6,
+    },
+    playerCloseText: {
+      color: '#fff',
+      fontSize: 15,
+    },
+    playerVideo: {
+      width: '100%',
+      height: '100%',
+    },
+  });
+}

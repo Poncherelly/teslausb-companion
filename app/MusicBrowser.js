@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { PI_SERVICE_URL } from './config';
+import { useTheme } from './theme';
 
 function formatSize(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function Breadcrumb({ path, onNavigate }) {
+function Breadcrumb({ path, onNavigate, styles }) {
   const segments = path ? path.split('/') : [];
   return (
     <View style={styles.breadcrumb}>
@@ -26,6 +27,8 @@ function Breadcrumb({ path, onNavigate }) {
 }
 
 export default function MusicBrowser() {
+  const theme = useTheme();
+  const styles = createStyles(theme);
   const [path, setPath] = useState('');
   const [entries, setEntries] = useState([]);
   const [error, setError] = useState(null);
@@ -47,7 +50,7 @@ export default function MusicBrowser() {
 
   return (
     <View style={styles.container}>
-      <Breadcrumb path={path} onNavigate={setPath} />
+      <Breadcrumb path={path} onNavigate={setPath} styles={styles} />
       {error && <Text style={styles.error}>Error: {error}</Text>}
       <FlatList
         data={entries}
@@ -70,53 +73,57 @@ export default function MusicBrowser() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  breadcrumb: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#f7f7f7',
-  },
-  breadcrumbSegment: {
-    flexDirection: 'row',
-  },
-  breadcrumbLink: {
-    fontSize: 14,
-    color: '#0066cc',
-  },
-  breadcrumbSeparator: {
-    fontSize: 14,
-    color: '#999',
-  },
-  error: {
-    color: 'red',
-    marginHorizontal: 16,
-    marginTop: 8,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  icon: {
-    fontSize: 20,
-    marginRight: 12,
-  },
-  rowText: {
-    flex: 1,
-  },
-  name: {
-    fontSize: 15,
-  },
-  meta: {
-    fontSize: 13,
-    color: '#666',
-  },
-});
+function createStyles(theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    breadcrumb: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      backgroundColor: theme.surface,
+    },
+    breadcrumbSegment: {
+      flexDirection: 'row',
+    },
+    breadcrumbLink: {
+      fontSize: 14,
+      color: theme.accent,
+    },
+    breadcrumbSeparator: {
+      fontSize: 14,
+      color: theme.textMuted,
+    },
+    error: {
+      color: theme.error,
+      marginHorizontal: 16,
+      marginTop: 8,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    icon: {
+      fontSize: 20,
+      marginRight: 12,
+    },
+    rowText: {
+      flex: 1,
+    },
+    name: {
+      fontSize: 15,
+      color: theme.text,
+    },
+    meta: {
+      fontSize: 13,
+      color: theme.textSecondary,
+    },
+  });
+}

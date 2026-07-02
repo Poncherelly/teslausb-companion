@@ -6,6 +6,25 @@ All notable changes to this project are documented here, following
 ## [Unreleased]
 
 ### Added
+- Fourth "Settings" tab, replacing the standalone "+ Device" button —
+  houses "Set up new device" (opens the BLE pairing screen) and a
+  disabled "Archive settings" placeholder for future work.
+- Automatic light/dark theme (`app/theme.js`, `useColorScheme()`),
+  applied across all screens. No manual toggle — follows the phone's
+  system setting per the user's explicit preference.
+
+### Fixed
+- BLE reconnect reliability: connections now retry a few times before
+  giving up (BLE is flaky, especially right after the app was
+  force-closed rather than backgrounded), and the pairing screen now
+  explicitly releases its BLE connection on close instead of relying
+  on implicit teardown — was causing "device was disconnected, no way
+  to reconnect" errors that needed a full app restart to clear.
+- Pairing screen's password input had no explicit text color and was
+  hard to read against some backgrounds even though it was working
+  correctly — fixed by setting an explicit theme-aware color.
+
+### Added
 - Initial project scaffolding: README, CONTRIBUTING, .gitignore.
 - Design docs moved into `docs/` (architecture, data model, API, BLE
   protocol, state machines, security, archive/Tesla integration, open

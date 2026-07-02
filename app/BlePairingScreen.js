@@ -15,6 +15,7 @@ import { BleManager } from 'react-native-ble-plx';
 import { Buffer } from 'buffer';
 import * as SecureStore from 'expo-secure-store';
 import { PI_SERVICE_URL } from './config';
+import { useTheme } from './theme';
 
 // Must match pi-service/src/ble/peripheral.js exactly.
 const SERVICE_UUID = 'e5eab36e-5fca-456d-9419-4db713b627ea';
@@ -33,6 +34,29 @@ function encode(str) {
 
 function decode(base64) {
   return Buffer.from(base64, 'base64').toString('utf8');
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// BLE connections are notoriously flaky, especially right after a
+// previous session didn't get cleanly torn down (e.g. the app was
+// force-closed rather than backgrounded) — the OS can hold a stale
+// reference and reject the first attempt with a "was disconnected"
+// style error even though the device is right there. A short retry
+// loop resolves this far more often than it should need to.
+async function connectWithRetry(device, attempts = 3) {
+  let lastError;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await device.connect();
+    } catch (err) {
+      lastError = err;
+      await sleep(1000);
+    }
+  }
+  throw lastError;
 }
 
 async function requestAndroidBlePermissions() {
@@ -56,6 +80,8 @@ async function requestAndroidBlePermissions() {
 }
 
 export default function BlePairingScreen({ visible, onClose }) {
+  const theme = useTheme();
+  const styles = createStyles(theme);
   const managerRef = useRef(null);
   const deviceRef = useRef(null);
   const [step, setStep] = useState('scanning'); // scanning | found | claiming | claimed | wifi-sending | done | error
@@ -90,7 +116,7 @@ export default function BlePairingScreen({ visible, onClose }) {
 
         managerRef.current.stopDeviceScan();
         try {
-          let connected = await device.connect();
+          let connected = await connectWithRetry(device);
           // Default BLE MTU only leaves ~20 usable bytes per write —
           // not enough for the WiFi config JSON payload. Android needs
           // this requested explicitly; iOS negotiates automatically
@@ -136,6 +162,15 @@ export default function BlePairingScreen({ visible, onClose }) {
     return () => {
       cancelled = true;
       managerRef.current?.stopDeviceScan();
+      // Explicitly release the connection rather than just destroying
+      // the manager — leaving this implicit is what caused the OS to
+      // hold a stale reference and reject the next connection attempt
+      // with a "was disconnected" error even though the device was
+      // right there.
+      if (deviceRef.current) {
+        deviceRef.current.cancelConnection().catch(() => {});
+        deviceRef.current = null;
+      }
       managerRef.current?.destroy();
     };
   }, [visible]);
@@ -218,7 +253,7 @@ export default function BlePairingScreen({ visible, onClose }) {
 
         {step === 'scanning' && (
           <View style={styles.centeredRow}>
-            <ActivityIndicator style={styles.spinner} />
+            <ActivityIndicator style={styles.spinner} color={theme.text} />
             <Text style={styles.body}>Scanning for a TeslaUSB device nearby…</Text>
           </View>
         )}
@@ -286,7 +321,7 @@ export default function BlePairingScreen({ visible, onClose }) {
 
         {step === 'done' && (
           <View style={styles.centeredRow}>
-            <ActivityIndicator style={styles.spinner} />
+            <ActivityIndicator style={styles.spinner} color={theme.text} />
             <Text style={styles.body}>
               WiFi details sent — the Pi is rebooting to apply them and rejoin
               your network. This can take a minute or two; checking automatically…
@@ -311,10 +346,11 @@ export default function BlePairingScreen({ visible, onClose }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.background,
   },
   content: {
     paddingTop: 60,
@@ -327,18 +363,20 @@ const styles = StyleSheet.create({
   },
   closeText: {
     fontSize: 15,
-    color: '#666',
+    color: theme.textSecondary,
   },
   title: {
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 20,
+    color: theme.text,
   },
   body: {
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 16,
     flexShrink: 1,
+    color: theme.text,
   },
   centeredRow: {
     flexDirection: 'row',
@@ -350,12 +388,13 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: theme.inputBorder,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 16,
     marginBottom: 12,
+    color: theme.text,
   },
   button: {
     backgroundColor: '#111',
@@ -370,12 +409,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   error: {
-    color: 'red',
+    color: theme.error,
     marginBottom: 12,
   },
   statusLine: {
     marginTop: 32,
     fontSize: 12,
-    color: '#999',
+    color: theme.textMuted,
   },
-});
+  });
+}
