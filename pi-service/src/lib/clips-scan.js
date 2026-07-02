@@ -157,6 +157,26 @@ function resolveClipLocation(clipsRoot, category, timestampKey) {
     : { category, timestampKey, dir: path.join(base, timestampKey), isEventDir: true };
 }
 
+// Checks whether a Saved/Sentry clip (by category + timestampKey) has a
+// matching event folder in the archive — this is how real `state` gets
+// computed (added 2026-07-03) for `source=pi` listings and for
+// DELETE /clips/{id}, replacing the previously hardcoded
+// `state: "new"` for every real clip. RecentClips is never archived
+// (the rolling buffer isn't synced there — confirmed against the real
+// archive share, see docs/DATA_MODEL.md), so it's always "not archived"
+// without even checking.
+export async function isArchived(archiveClipsRoot, category, timestampKey) {
+  if (category === "recent") return false;
+  const location = resolveClipLocation(archiveClipsRoot, category, timestampKey);
+  if (!location) return false;
+  try {
+    await fs.access(location.dir);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function listClipFiles(location) {
   let entries;
   try {

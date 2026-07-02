@@ -43,7 +43,13 @@ security model in STATE_MACHINES.md.
   `state=archived`; share one internal function with the deletion sweep
   so there is exactly one code path allowed to delete. Also rejects
   `source=archive` outright (403) — deleting the archive copy itself
-  isn't supported.
+  isn't supported. As of 2026-07-03 this is a real, working gate, not
+  permanently-unreachable code: it live-verifies against the archive
+  (`clips-scan.js`'s `isArchived`) at delete time, rather than trusting
+  `state` from an earlier `GET /clips` response — see
+  `pi-service/src/routes/clips.js`. `GET /clips?source=pi` separately
+  annotates `state: "archived"` for display (`annotateArchivedState`),
+  but that's for the app's UI, not the safety check itself.
 - `GET /clips/{id}/thumbnail`
 - `GET /music?source=pi|archive&path=<relative path>` — **folder
   browser, not a flat list** (revised 2026-07-02 after real data showed

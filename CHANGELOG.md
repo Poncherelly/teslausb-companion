@@ -6,6 +6,25 @@ All notable changes to this project are documented here, following
 ## [Unreleased]
 
 ### Added
+- **Real clip delete, unblocked for the first time**: `state` is now
+  computed from real data for `source=pi` clips (`clips-scan.js`'s
+  `isArchived` checks whether a Saved/Sentry clip has a matching event
+  folder in the archive), replacing the previously-hardcoded
+  `state: "new"` that made `DELETE /clips/{id}` reject every real
+  request. The delete endpoint independently re-verifies archived
+  status live at delete time rather than trusting the listing's
+  annotation — that annotation is for UI display only. On-device clips
+  now show an "· Archived" marker once eligible, and the video player
+  modal has a "Delete from Pi" button for archived on-device clips
+  (confirmation dialog first; explicitly never shown for archive-
+  sourced or not-yet-archived clips).
+- **"Save to Photos"** — the video player modal can now save the
+  currently-playing file to the phone's Photos library (`expo-file-
+  system`'s `File.downloadFileAsync` + `expo-media-library`'s
+  `saveToLibraryAsync`, write-only permission so iOS only prompts for
+  "add photos," not full library access). New native dependencies —
+  **requires a fresh EAS dev-client build** before this can run; won't
+  work against the existing installed build.
 - Archive tab redesigned as a folder-drill browser (`app/
   ArchiveBrowser.js`) — Category (SavedClips/SentryClips) -> Event ->
   Files — mirroring the Music tab's folder-browser pattern per explicit
