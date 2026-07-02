@@ -42,6 +42,23 @@ All notable changes to this project are documented here, following
   `wifi_connected` notification is possible from the pre-reboot
   process).
 
+### Added
+- Real clip listing, replacing fake data: `pi-service/src/lib/cam-mount.js`
+  loop-mounts teslausb's `cam_disk.bin` (read-only) and
+  `clips-scan.js` scans the real `TeslaCam/{RecentClips,SavedClips,
+  SentryClips}` structure, grouping each Tesla camera-angle set into
+  one Clip (see docs/DATA_MODEL.md real-data note). Falls back to
+  fake data on non-Linux dev machines or if the mount fails. `GET
+  /clips` now sorts newest-first.
+- App: two-tab "On device"/"Archive" browser per docs/ARCHITECTURE.md,
+  with clips grouped into Saved/Sentry/Recent sections within the "On
+  device" tab (added after testing against real data showed a flat
+  list of 65 clips was unusable — Recent clips buried the few
+  Saved/Sentry ones at the bottom of the scroll). "Archive" tab is a
+  placeholder — no archive-sync process exists yet.
+  Verified against real data on the Pi (65 real clips: 61 recent, 4
+  sentry, 0 saved) and viewed live on a phone via Expo Go.
+
 ### Discovered (real-hardware testing, 2026-07-01)
 
 - teslausb's actual headless WiFi reconfiguration mechanism: it does

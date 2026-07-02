@@ -1,11 +1,14 @@
 import { Router } from "express";
+import { ensureCamMounted } from "../lib/cam-mount.js";
+import { scanClips } from "../lib/clips-scan.js";
 
 // Everyday-use clip endpoints — see docs/API.md "Everyday use" section.
 // All require the admin session credential established during the wizard.
 export const clipsRouter = Router();
 
-// Fake data for the first end-to-end vertical slice (no real Pi storage
-// or archive-sync process wired up yet). Shape matches docs/DATA_MODEL.md.
+// Fake data fallback for local dev off the Pi (Windows/macOS, or Linux
+// without a mounted cam_disk.bin) — no real teslausb storage to read.
+// Shape matches docs/DATA_MODEL.md.
 const FAKE_CLIPS = [
   {
     id: "1",
@@ -42,11 +45,23 @@ const FAKE_CLIPS = [
   },
 ];
 
-clipsRouter.get("/", (req, res) => {
+async function getClips() {
+  if (process.platform !== "linux") return FAKE_CLIPS;
+  try {
+    const mountPoint = await ensureCamMounted();
+    return await scanClips(mountPoint);
+  } catch (err) {
+    console.error("Falling back to fake clips — cam disk mount failed:", err.message);
+    return FAKE_CLIPS;
+  }
+}
+
+clipsRouter.get("/", async (req, res) => {
   const { category, state } = req.query;
-  let clips = FAKE_CLIPS;
+  let clips = await getClips();
   if (category) clips = clips.filter((c) => c.category === category);
   if (state) clips = clips.filter((c) => c.state === state);
+  clips = [...clips].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   res.json({ clips });
 });
 

@@ -16,6 +16,17 @@ implementation starts.
 - `encrypted_on_disk`: bool
 - `locked_by_download`: bool — in-use lock, see STATE_MACHINES.md
 
+**Real-data note (2026-07-01):** Tesla's own dashcam layout records up
+to 4 camera angles (front/back/left_repeater/right_repeater) per
+moment, but this entity has a single `filename`. First real
+implementation (`pi-service/src/lib/clips-scan.js`) treats one Clip as
+the whole camera-angle group — `filename`/`size` come from the front
+camera / summed across all angles — not one Clip per file. Revisit if
+per-angle download/delete is ever needed. `checksum` is not populated
+by the listing endpoint (expensive to hash video files on every
+request); it belongs to archive-sync verification, which doesn't exist
+yet either.
+
 ## ArchiveDestination
 
 - `id`
