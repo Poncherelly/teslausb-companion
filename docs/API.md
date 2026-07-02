@@ -64,7 +64,16 @@ security model in STATE_MACHINES.md.
   explicitly rather than a generic 500. Implemented in
   `pi-service/src/lib/music-scan.js` (source-agnostic folder browser)
   and `src/lib/archive-mount.js` (`ensureArchiveMusicMounted`).
-  `DELETE /music/{id}`, `PUT /settings/music` not implemented yet.
+- `GET /music/download?source=pi|archive&path=<relative path>` — added
+  2026-07-03, streams a single file for in-app playback the same way
+  clip downloads do (Express's `res.sendFile` supports HTTP Range
+  requests natively). `path` must resolve to a real file within the
+  mount (`music-scan.js`'s `resolveMusicFile`, same path-traversal
+  protection as the folder browser). Powers `app/MusicBrowser.js`'s
+  "Now Playing" bar (`expo-audio`'s `useAudioPlayer`/
+  `useAudioPlayerStatus`).
+  `DELETE /music/{id}`, `PUT /settings/music`, upload are not
+  implemented yet.
 - `GET /archive/config`, `PUT /archive/config` — **revised 2026-07-02,
   scoped down from the original multi-destination
   `/archive/destinations` design** to match what's actually deployed:

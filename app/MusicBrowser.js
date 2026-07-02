@@ -1,10 +1,55 @@
 import { useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { PI_SERVICE_URL } from './config';
 import { useTheme } from './theme';
 
 function formatSize(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatTime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Streams the same way video playback does — GET /music/download
+// supports HTTP Range requests (Express's res.sendFile), so the
+// player can seek without downloading the whole file first.
+function NowPlayingBar({ track, onClose, styles }) {
+  const player = useAudioPlayer(track.url);
+  const status = useAudioPlayerStatus(player);
+
+  useEffect(() => {
+    player.play();
+    // Only re-run when the track itself changes, not on every player
+    // identity change from useAudioPlayer's own internals.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track.url]);
+
+  return (
+    <View style={styles.nowPlaying}>
+      <View style={styles.nowPlayingInfo}>
+        <Text style={styles.nowPlayingName} numberOfLines={1}>
+          {track.name}
+        </Text>
+        <Text style={styles.nowPlayingTime}>
+          {formatTime(status.currentTime)} / {formatTime(status.duration)}
+        </Text>
+      </View>
+      <Pressable
+        style={styles.nowPlayingButton}
+        onPress={() => (status.playing ? player.pause() : player.play())}
+      >
+        <Text style={styles.nowPlayingButtonText}>{status.playing ? '⏸' : '▶'}</Text>
+      </Pressable>
+      <Pressable style={styles.nowPlayingButton} onPress={onClose}>
+        <Text style={styles.nowPlayingButtonText}>✕</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 function Breadcrumb({ path, onNavigate, styles }) {
@@ -54,10 +99,20 @@ export default function MusicBrowser() {
   const [path, setPath] = useState('');
   const [entries, setEntries] = useState([]);
   const [error, setError] = useState(null);
+  const [playingTrack, setPlayingTrack] = useState(null);
 
   function changeSource(next) {
     setSource(next);
     setPath('');
+    setPlayingTrack(null);
+  }
+
+  function playFile(item) {
+    const filePath = path ? `${path}/${item.name}` : item.name;
+    setPlayingTrack({
+      name: item.name,
+      url: `${PI_SERVICE_URL}/music/download?source=${source}&path=${encodeURIComponent(filePath)}`,
+    });
   }
 
   useEffect(() => {
@@ -93,8 +148,11 @@ export default function MusicBrowser() {
         renderItem={({ item }) => (
           <Pressable
             style={styles.row}
-            disabled={item.type !== 'folder'}
-            onPress={() => setPath(path ? `${path}/${item.name}` : item.name)}
+            onPress={() =>
+              item.type === 'folder'
+                ? setPath(path ? `${path}/${item.name}` : item.name)
+                : playFile(item)
+            }
           >
             <Text style={styles.icon}>{item.type === 'folder' ? '📁' : '🎵'}</Text>
             <View style={styles.rowText}>
@@ -104,6 +162,14 @@ export default function MusicBrowser() {
           </Pressable>
         )}
       />
+      {playingTrack && (
+        <NowPlayingBar
+          key={playingTrack.url}
+          track={playingTrack}
+          onClose={() => setPlayingTrack(null)}
+          styles={styles}
+        />
+      )}
     </View>
   );
 }
@@ -183,6 +249,37 @@ function createStyles(theme) {
     meta: {
       fontSize: 13,
       color: theme.textSecondary,
+    },
+    nowPlaying: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      backgroundColor: theme.surface,
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+    },
+    nowPlayingInfo: {
+      flex: 1,
+      marginRight: 8,
+    },
+    nowPlayingName: {
+      fontSize: 14,
+      color: theme.text,
+      fontWeight: '600',
+    },
+    nowPlayingTime: {
+      fontSize: 12,
+      color: theme.textMuted,
+      marginTop: 2,
+    },
+    nowPlayingButton: {
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+    },
+    nowPlayingButtonText: {
+      fontSize: 18,
+      color: theme.accent,
     },
   });
 }
