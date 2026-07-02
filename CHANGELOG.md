@@ -27,6 +27,21 @@ All notable changes to this project are documented here, following
   `source=pi|archive` filtering from docs/API.md is not implemented
   yet (no real archive-sync process exists to distinguish them).
 
+### Added
+- BLE "TeslaUSB Provisioning" GATT service (`pi-service/src/ble/`):
+  device info, claim code, WiFi config, admin password, and status
+  characteristics per docs/BLE_PROTOCOL.md. The WiFi config write
+  performs teslausb's real reconfiguration (write
+  `teslausb_setup_variables.conf`, clear `WIFI_ENABLED`, reboot), not a
+  simulation. Verified end-to-end on real Pi Zero W hardware via a
+  generic BLE scanner app (nRF Connect): claim-code gating, device info
+  read, admin password write-and-hash, and a real WiFi reconfiguration
+  reboot that successfully rejoined the network. Not yet wired into
+  the actual mobile app (still on classic Expo Go, no BLE library) —
+  see docs/OPEN_QUESTIONS.md #12 for the one known design gap (no live
+  `wifi_connected` notification is possible from the pre-reboot
+  process).
+
 ### Discovered (real-hardware testing, 2026-07-01)
 
 - teslausb's actual headless WiFi reconfiguration mechanism: it does

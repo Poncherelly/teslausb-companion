@@ -11,13 +11,29 @@ happen over a GATT characteristic.
 
 ## Service: TeslaUSB Provisioning
 
-| Characteristic | Property | Purpose |
-|---|---|---|
-| Device info | Read | JSON: `{serial_last4, fw_version, pairing_state}` |
-| Claim code | Write | App writes the code printed on the device (serial or dedicated pairing code). Out-of-band secret, independent of BLE link-layer pairing. |
-| WiFi config | Write | SSID + password; only accepted after a valid claim code this session |
-| Admin password | Write | Sets the credential the REST API requires from here on |
-| Status | Read + Notify | `idle → connecting_wifi → wifi_failed → wifi_connected(ip)` — app switches to REST once `wifi_connected` |
+Implemented in `pi-service/src/ble/peripheral.js`.
+
+| Characteristic | Property | Purpose | UUID |
+|---|---|---|---|
+| Device info | Read | JSON: `{serial_last4, fw_version, pairing_state}` | `e5eab36e-5fca-456d-9419-4db713b627eb` |
+| Claim code | Write | App writes the code printed on the device (serial or dedicated pairing code). Out-of-band secret, independent of BLE link-layer pairing. | `e5eab36e-5fca-456d-9419-4db713b627ec` |
+| WiFi config | Write | SSID + password; only accepted after a valid claim code this session | `e5eab36e-5fca-456d-9419-4db713b627ed` |
+| Admin password | Write | Sets the credential the REST API requires from here on | `e5eab36e-5fca-456d-9419-4db713b627ee` |
+| Status | Read + Notify | `idle → connecting_wifi → wifi_failed → wifi_connected(ip)` — app switches to REST once `wifi_connected` | `e5eab36e-5fca-456d-9419-4db713b627ef` |
+
+Service UUID: `e5eab36e-5fca-456d-9419-4db713b627ea`.
+
+**Known gap (see docs/OPEN_QUESTIONS.md #12):** the WiFi config write
+triggers a real reboot on the Pi (teslausb's own reconfiguration
+mechanism — see `wifi-reconfigure.js`) to actually apply new
+credentials. The *current* bleno process ends at that reboot, so no
+process is left running to notify `wifi_connected` — the app cannot
+observe that transition over BLE and must fall back to polling the
+REST API after a delay, or a fresh BLE advertising session on next
+boot. Verified working end-to-end on real Pi Zero W hardware
+(2026-07-01) using a generic BLE scanner (nRF Connect) as the central,
+not yet from the actual mobile app (which still uses classic Expo Go
+and has no BLE library wired in — see CLAUDE.md "Tech stack").
 
 ## Why the claim code matters independent of BLE pairing
 

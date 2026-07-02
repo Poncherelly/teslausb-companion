@@ -18,3 +18,10 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`pi-service listening on port ${port}`);
 });
+
+// @abandonware/bleno only builds/runs on Linux — skip it entirely on
+// other platforms so the REST API still works for local dev.
+if (process.platform === "linux") {
+  const { startBlePeripheral } = await import("./ble/peripheral.js");
+  startBlePeripheral();
+}

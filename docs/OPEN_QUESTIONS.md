@@ -87,3 +87,13 @@ period this project was being designed.
     adding the runtime user to the `bluetooth` group (otherwise
     `bluetoothd` is invisible to non-root D-Bus callers even though the
     controller is genuinely present).
+
+12. **No live `wifi_connected` BLE notification is possible with the
+    current design.** The WiFi config write triggers teslausb's real
+    reconfiguration mechanism, which reboots the Pi — the bleno process
+    handling that write ends at the reboot, so it can never itself
+    notify a later status change. Either the app needs to poll the REST
+    API after a delay once it stops seeing BLE activity, or a fresh BLE
+    advertising session on next boot needs to carry the "did wifi
+    actually connect" answer instead of the pre-reboot process. Not
+    resolved — flagging for whoever builds the app-side wizard flow.

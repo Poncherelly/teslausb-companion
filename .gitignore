@@ -22,6 +22,7 @@ Thumbs.db
 # Node.js (pi-service/, app/)
 node_modules/
 npm-debug.log*
+pi-service/data/
 
 # Expo (app/)
 app/.expo/
