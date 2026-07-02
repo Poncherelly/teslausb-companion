@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, Image, Modal, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import ArchiveBrowser from './ArchiveBrowser';
 import AppBanner from './AppBanner';
 import BlePairingScreen from './BlePairingScreen';
 import MusicBrowser from './MusicBrowser';
@@ -52,14 +53,18 @@ function ClipRow({ item, onPress, styles }) {
 // Streams directly from the same download endpoint — it already
 // supports HTTP Range requests (confirmed against the real Pi), which
 // is what lets the player seek without downloading the whole file
-// first.
+// first. `clip.file` (set by ArchiveBrowser's per-file playback) plays
+// that specific camera-angle/sidecar file instead of the clip's
+// representative front-camera file.
 function VideoPlayerModal({ clip, onClose, styles }) {
-  const player = useVideoPlayer(
-    clip ? `${PI_SERVICE_URL}/clips/${clip.id}/download` : null,
-    (p) => {
-      p.play();
-    }
-  );
+  const url = clip
+    ? `${PI_SERVICE_URL}/clips/${encodeURIComponent(clip.id)}/download${
+        clip.file ? `?file=${encodeURIComponent(clip.file)}` : ''
+      }`
+    : null;
+  const player = useVideoPlayer(url, (p) => {
+    p.play();
+  });
 
   return (
     <Modal visible={clip != null} animationType="slide" onRequestClose={onClose}>
@@ -94,19 +99,17 @@ export default function App() {
   const [playingClip, setPlayingClip] = useState(null);
   const [pairingVisible, setPairingVisible] = useState(false);
 
+  // Archive has its own dedicated component (ArchiveBrowser) with its
+  // own fetch/state, not shared with this on-device effect — splitting
+  // them structurally rules out the class of race condition that hit
+  // the shared-state version of this (see CHANGELOG "Fixed" entry
+  // 2026-07-02: switching tabs before the much-slower archive fetch
+  // resolved could let it overwrite on-device data, or vice versa).
   useEffect(() => {
-    if (tab !== 'device' && tab !== 'archive') return;
-    const source = tab === 'archive' ? 'archive' : 'pi';
-    // The archive fetch is much slower than the on-device one (real CIFS
-    // mount + stat over the network, ~20s vs ~1s) — without this guard,
-    // switching tabs before it resolves lets its response land after a
-    // later, faster fetch already updated state, silently overwriting
-    // the display with the wrong source's clips. Same `cancelled` guard
-    // pattern as AppBanner.js.
+    if (tab !== 'device') return;
     let cancelled = false;
-    setClips([]);
     setClipsLoading(true);
-    fetch(`${PI_SERVICE_URL}/clips?source=${source}`)
+    fetch(`${PI_SERVICE_URL}/clips?source=pi`)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
@@ -167,7 +170,7 @@ export default function App() {
 
       {error && <Text style={styles.error}>Error: {error}</Text>}
 
-      {(tab === 'device' || tab === 'archive') && (
+      {tab === 'device' && (
         clipsLoading ? (
           <View style={styles.placeholder}>
             <ActivityIndicator color={theme.textMuted} />
@@ -183,14 +186,11 @@ export default function App() {
           />
         ) : (
           <View style={styles.placeholder}>
-            <Text style={styles.placeholderText}>
-              {tab === 'archive'
-                ? 'No archived clips yet — check Settings to confirm the archive destination is configured.'
-                : 'No clips found on the device.'}
-            </Text>
+            <Text style={styles.placeholderText}>No clips found on the device.</Text>
           </View>
         )
       )}
+      {tab === 'archive' && <ArchiveBrowser onPlay={setPlayingClip} />}
       {tab === 'music' && <MusicBrowser />}
       {tab === 'settings' && <SettingsScreen onSetupDevice={() => setPairingVisible(true)} />}
 
