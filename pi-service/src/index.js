@@ -4,6 +4,7 @@ import { setupRouter } from "./routes/setup.js";
 import { clipsRouter } from "./routes/clips.js";
 import { musicRouter } from "./routes/music.js";
 import { systemRouter } from "./routes/system.js";
+import { archiveRouter } from "./routes/archive.js";
 
 const app = express();
 app.use(cors());
@@ -13,6 +14,7 @@ app.use("/setup", setupRouter);
 app.use("/clips", clipsRouter);
 app.use("/music", musicRouter);
 app.use("/system", systemRouter);
+app.use("/archive", archiveRouter);
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
