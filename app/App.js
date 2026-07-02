@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 // Hardcoded for this first vertical-slice test. Once BLE pairing exists,
 // the app will learn the Pi's address during setup instead.
@@ -21,14 +22,54 @@ function groupIntoSections(clips) {
   })).filter((section) => section.data.length > 0);
 }
 
-function ClipRow({ item }) {
+// Only Saved/Sentry events have a real thumb.png from the car;
+// RecentClips has none — see pi-service/src/lib/clips-scan.js.
+const HAS_THUMBNAIL = new Set(['saved', 'sentry']);
+
+function ClipRow({ item, onPress }) {
   return (
-    <View style={styles.row}>
-      <Text style={styles.filename}>{item.filename}</Text>
-      <Text style={styles.meta}>
-        {new Date(item.timestamp).toLocaleString()} · {(item.size / 1024 / 1024).toFixed(0)} MB
-      </Text>
-    </View>
+    <Pressable style={styles.row} onPress={() => onPress(item)}>
+      {HAS_THUMBNAIL.has(item.category) ? (
+        <Image
+          style={styles.thumbnail}
+          source={{ uri: `${PI_SERVICE_URL}/clips/${item.id}/thumbnail` }}
+        />
+      ) : (
+        <View style={styles.thumbnailPlaceholder} />
+      )}
+      <View style={styles.rowText}>
+        <Text style={styles.filename}>{item.filename}</Text>
+        <Text style={styles.meta}>
+          {new Date(item.timestamp).toLocaleString()} · {(item.size / 1024 / 1024).toFixed(0)} MB
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+// Streams directly from the same download endpoint — it already
+// supports HTTP Range requests (confirmed against the real Pi), which
+// is what lets the player seek without downloading the whole file
+// first.
+function VideoPlayerModal({ clip, onClose }) {
+  const player = useVideoPlayer(
+    clip ? `${PI_SERVICE_URL}/clips/${clip.id}/download` : null,
+    (p) => {
+      p.play();
+    }
+  );
+
+  return (
+    <Modal visible={clip != null} animationType="slide" onRequestClose={onClose}>
+      <View style={styles.playerContainer}>
+        <Pressable style={styles.playerClose} onPress={onClose}>
+          <Text style={styles.playerCloseText}>Close</Text>
+        </Pressable>
+        {clip && (
+          <VideoView style={styles.playerVideo} player={player} allowsFullscreen contentFit="contain" />
+        )}
+      </View>
+    </Modal>
   );
 }
 
@@ -45,6 +86,7 @@ export default function App() {
   const [tab, setTab] = useState('device');
   const [clips, setClips] = useState([]);
   const [error, setError] = useState(null);
+  const [playingClip, setPlayingClip] = useState(null);
 
   useEffect(() => {
     if (tab !== 'device') return;
@@ -84,7 +126,7 @@ export default function App() {
           style={styles.list}
           sections={groupIntoSections(clips)}
           keyExtractor={(item) => item.id}
-          renderItem={ClipRow}
+          renderItem={({ item }) => <ClipRow item={item} onPress={setPlayingClip} />}
           renderSectionHeader={SectionHeader}
           stickySectionHeadersEnabled
         />
@@ -96,6 +138,8 @@ export default function App() {
           </Text>
         </View>
       )}
+
+      <VideoPlayerModal clip={playingClip} onClose={() => setPlayingClip(null)} />
     </View>
   );
 }
@@ -155,10 +199,29 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   row: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+  },
+  thumbnail: {
+    width: 64,
+    height: 48,
+    borderRadius: 4,
+    backgroundColor: '#eee',
+    marginRight: 12,
+  },
+  thumbnailPlaceholder: {
+    width: 64,
+    height: 48,
+    borderRadius: 4,
+    backgroundColor: '#f2f2f2',
+    marginRight: 12,
+  },
+  rowText: {
+    flex: 1,
   },
   filename: {
     fontSize: 15,
@@ -177,5 +240,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#888',
     textAlign: 'center',
+  },
+  playerContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+  },
+  playerClose: {
+    position: 'absolute',
+    top: 50,
+    right: 16,
+    zIndex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 6,
+  },
+  playerCloseText: {
+    color: '#fff',
+    fontSize: 15,
+  },
+  playerVideo: {
+    width: '100%',
+    height: '100%',
   },
 });

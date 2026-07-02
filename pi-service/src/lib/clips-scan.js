@@ -114,3 +114,89 @@ export async function scanClips(mountPoint) {
   ]);
   return [...recent, ...saved, ...sentry];
 }
+
+const CATEGORY_DIRS = {
+  recent: "RecentClips",
+  saved: "SavedClips",
+  sentry: "SentryClips",
+};
+
+// Ids are `${category}-${timestampKey}` (see scan functions above).
+// `timestampKey` itself contains hyphens, so split on the *first* one —
+// category names never contain a hyphen.
+function resolveClipLocation(mountPoint, id) {
+  const separator = id.indexOf("-");
+  if (separator === -1) return null;
+  const category = id.slice(0, separator);
+  const timestampKey = id.slice(separator + 1);
+  const categoryDir = CATEGORY_DIRS[category];
+  if (!categoryDir) return null;
+
+  const base = path.join(mountPoint, "TeslaCam", categoryDir);
+  return category === "recent"
+    ? { category, timestampKey, dir: base, isEventDir: false }
+    : { category, timestampKey, dir: path.join(base, timestampKey), isEventDir: true };
+}
+
+async function listClipFiles(location) {
+  let entries;
+  try {
+    entries = await fs.readdir(location.dir);
+  } catch {
+    return [];
+  }
+  return location.isEventDir
+    ? entries.filter((f) => f.endsWith(".mp4"))
+    : entries.filter((f) => f.startsWith(`${location.timestampKey}-`) && f.endsWith(".mp4"));
+}
+
+function pickRepresentative(filenames) {
+  return filenames.find((f) => f.includes("-front.mp4")) ?? filenames[0] ?? null;
+}
+
+// Download streams a single representative file (front camera), not
+// all camera angles — see the multi-camera-grouping note above.
+export async function getDownloadPath(mountPoint, id) {
+  const location = resolveClipLocation(mountPoint, id);
+  if (!location) return null;
+  const files = await listClipFiles(location);
+  const front = pickRepresentative(files);
+  return front ? path.join(location.dir, front) : null;
+}
+
+// Also used for the thumbnail endpoint (Saved/Sentry events ship a
+// real thumb.png from the car; RecentClips has no such file).
+export async function getThumbnailPath(mountPoint, id) {
+  const location = resolveClipLocation(mountPoint, id);
+  if (!location || !location.isEventDir) return null;
+  const thumbPath = path.join(location.dir, "thumb.png");
+  try {
+    await fs.access(thumbPath);
+    return thumbPath;
+  } catch {
+    return null;
+  }
+}
+
+// Deletes the whole clip: for events, the entire event directory
+// (camera files + event.json/event.mp4/thumb.png); for RecentClips,
+// just the camera files matching this timestamp (the directory is
+// shared across every RecentClips moment).
+export async function deleteClip(mountPoint, id) {
+  const location = resolveClipLocation(mountPoint, id);
+  if (!location) return false;
+
+  if (location.isEventDir) {
+    try {
+      await fs.rm(location.dir, { recursive: true, force: true });
+    } catch {
+      return false;
+    }
+    return true;
+  }
+
+  const files = await listClipFiles(location);
+  if (files.length === 0) return false;
+  await Promise.all(files.map((f) => fs.rm(path.join(location.dir, f))));
+  return true;
+}

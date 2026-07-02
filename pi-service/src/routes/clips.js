@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { ensureCamMounted } from "../lib/cam-mount.js";
-import { scanClips } from "../lib/clips-scan.js";
+import { deleteClip, getDownloadPath, getThumbnailPath, scanClips } from "../lib/clips-scan.js";
+import { isClipLocked, lockClip, unlockClip } from "../lib/download-locks.js";
 
 // Everyday-use clip endpoints — see docs/API.md "Everyday use" section.
 // All require the admin session credential established during the wizard.
@@ -49,7 +50,8 @@ async function getClips() {
   if (process.platform !== "linux") return FAKE_CLIPS;
   try {
     const mountPoint = await ensureCamMounted();
-    return await scanClips(mountPoint);
+    const clips = await scanClips(mountPoint);
+    return clips.map((c) => ({ ...c, locked_by_download: isClipLocked(c.id) }));
   } catch (err) {
     console.error("Falling back to fake clips — cam disk mount failed:", err.message);
     return FAKE_CLIPS;
@@ -65,14 +67,62 @@ clipsRouter.get("/", async (req, res) => {
   res.json({ clips });
 });
 
-clipsRouter.get("/:id/download", (req, res) => {
-  res.status(501).json({ error: "not implemented" });
+// Streams the representative file only, not every camera angle — see
+// docs/DATA_MODEL.md's real-data note. Never touches `state` (a
+// download is a side path, not an archive-sync transition — see
+// docs/STATE_MACHINES.md).
+clipsRouter.get("/:id/download", async (req, res) => {
+  if (process.platform !== "linux") {
+    return res.status(501).json({ error: "real clips only available on the Pi" });
+  }
+  try {
+    const mountPoint = await ensureCamMounted();
+    const filePath = await getDownloadPath(mountPoint, req.params.id);
+    if (!filePath) return res.status(404).json({ error: "clip not found" });
+
+    lockClip(req.params.id);
+    res.sendFile(filePath, (err) => {
+      unlockClip(req.params.id);
+      if (err && !res.headersSent) {
+        res.status(500).json({ error: "download failed" });
+      }
+    });
+  } catch (err) {
+    unlockClip(req.params.id);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-clipsRouter.delete("/:id", (req, res) => {
-  res.status(501).json({ error: "not implemented" });
+// Only valid from state=archived (docs/STATE_MACHINES.md) — with no
+// archive-sync process built yet, every real clip is currently `new`,
+// so this will correctly reject every request until that exists. That
+// is the intended safety behavior, not a bug.
+clipsRouter.delete("/:id", async (req, res) => {
+  if (process.platform !== "linux") {
+    return res.status(501).json({ error: "real clips only available on the Pi" });
+  }
+  const mountPoint = await ensureCamMounted();
+  const clips = await scanClips(mountPoint);
+  const clip = clips.find((c) => c.id === req.params.id);
+  if (!clip) return res.status(404).json({ error: "clip not found" });
+  if (clip.state !== "archived") {
+    return res.status(403).json({ error: "only archived clips can be deleted" });
+  }
+  if (isClipLocked(req.params.id)) {
+    return res.status(409).json({ error: "clip is currently being downloaded" });
+  }
+
+  const deleted = await deleteClip(mountPoint, req.params.id);
+  if (!deleted) return res.status(404).json({ error: "clip not found" });
+  res.status(204).send();
 });
 
-clipsRouter.get("/:id/thumbnail", (req, res) => {
-  res.status(501).json({ error: "not implemented" });
+clipsRouter.get("/:id/thumbnail", async (req, res) => {
+  if (process.platform !== "linux") {
+    return res.status(501).json({ error: "real clips only available on the Pi" });
+  }
+  const mountPoint = await ensureCamMounted();
+  const thumbPath = await getThumbnailPath(mountPoint, req.params.id);
+  if (!thumbPath) return res.status(404).json({ error: "no thumbnail for this clip" });
+  res.sendFile(thumbPath);
 });
