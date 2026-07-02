@@ -97,16 +97,31 @@ export default function App() {
   useEffect(() => {
     if (tab !== 'device' && tab !== 'archive') return;
     const source = tab === 'archive' ? 'archive' : 'pi';
+    // The archive fetch is much slower than the on-device one (real CIFS
+    // mount + stat over the network, ~20s vs ~1s) — without this guard,
+    // switching tabs before it resolves lets its response land after a
+    // later, faster fetch already updated state, silently overwriting
+    // the display with the wrong source's clips. Same `cancelled` guard
+    // pattern as AppBanner.js.
+    let cancelled = false;
     setClips([]);
     setClipsLoading(true);
     fetch(`${PI_SERVICE_URL}/clips?source=${source}`)
       .then((res) => res.json())
       .then((data) => {
+        if (cancelled) return;
         setClips(data.clips);
         setError(null);
       })
-      .catch((err) => setError(err.message))
-      .finally(() => setClipsLoading(false));
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setClipsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [tab]);
 
   return (

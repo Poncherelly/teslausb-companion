@@ -26,17 +26,46 @@ function Breadcrumb({ path, onNavigate, styles }) {
   );
 }
 
+function SourceToggle({ source, onChange, styles }) {
+  return (
+    <View style={styles.sourceToggle}>
+      {[
+        { key: 'pi', label: 'On device' },
+        { key: 'archive', label: 'Archive' },
+      ].map(({ key, label }) => (
+        <Pressable
+          key={key}
+          style={[styles.sourceButton, source === key && styles.sourceButtonActive]}
+          onPress={() => onChange(key)}
+        >
+          <Text style={[styles.sourceButtonLabel, source === key && styles.sourceButtonLabelActive]}>
+            {label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export default function MusicBrowser() {
   const theme = useTheme();
   const styles = createStyles(theme);
+  const [source, setSource] = useState('pi');
   const [path, setPath] = useState('');
   const [entries, setEntries] = useState([]);
   const [error, setError] = useState(null);
 
+  function changeSource(next) {
+    setSource(next);
+    setPath('');
+  }
+
   useEffect(() => {
-    fetch(`${PI_SERVICE_URL}/music?path=${encodeURIComponent(path)}`)
+    let cancelled = false;
+    fetch(`${PI_SERVICE_URL}/music?source=${source}&path=${encodeURIComponent(path)}`)
       .then((res) => res.json())
       .then((data) => {
+        if (cancelled) return;
         if (data.error) {
           setError(data.error);
           setEntries([]);
@@ -45,11 +74,17 @@ export default function MusicBrowser() {
           setEntries(data.entries);
         }
       })
-      .catch((err) => setError(err.message));
-  }, [path]);
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [source, path]);
 
   return (
     <View style={styles.container}>
+      <SourceToggle source={source} onChange={changeSource} styles={styles} />
       <Breadcrumb path={path} onNavigate={setPath} styles={styles} />
       {error && <Text style={styles.error}>Error: {error}</Text>}
       <FlatList
@@ -78,6 +113,30 @@ function createStyles(theme) {
     container: {
       flex: 1,
       backgroundColor: theme.background,
+    },
+    sourceToggle: {
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      gap: 8,
+    },
+    sourceButton: {
+      flex: 1,
+      paddingVertical: 8,
+      alignItems: 'center',
+      borderRadius: 8,
+      backgroundColor: theme.surface,
+    },
+    sourceButtonActive: {
+      backgroundColor: theme.accent,
+    },
+    sourceButtonLabel: {
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    sourceButtonLabelActive: {
+      color: '#fff',
+      fontWeight: '600',
     },
     breadcrumb: {
       flexDirection: 'row',

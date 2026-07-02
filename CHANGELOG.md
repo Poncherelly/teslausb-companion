@@ -5,7 +5,28 @@ All notable changes to this project are documented here, following
 
 ## [Unreleased]
 
+### Fixed
+- **Real bug, found 2026-07-02 the day after shipping the Archive tab**:
+  the Archive tab could show on-device clips instead of real archive
+  clips. Root cause: the archive fetch is much slower than the
+  on-device one (real CIFS mount + per-file `stat` over the network,
+  ~20s vs ~1s for a similarly sized on-device listing), and `App.js`'s
+  clip-fetching effect had no cancellation guard — switching tabs
+  before a slow fetch resolved let its response land *after* a later,
+  faster fetch had already updated state, silently overwriting the
+  display with the wrong source's clips. Confirmed server-side data was
+  correct and non-overlapping the whole time (65 on-device clips vs.
+  232 real archive clips, zero shared timestamps) before concluding
+  this was a client-side race, not a backend bug. Fixed with the same
+  `cancelled` guard pattern already used in `AppBanner.js`.
+
 ### Added
+- Music tab now has a Pi/Archive source toggle, reusing the same
+  folder-browser UI against the optional music share configured in
+  Archive settings — `GET /music?source=archive` mounts
+  `/mnt/musicarchive` on demand (`archive-mount.js`'s
+  `ensureArchiveMusicMounted`), with a clear error if no music share
+  was configured rather than a generic 500.
 - Archive tab now shows real clips instead of a placeholder message —
   `GET /clips?source=archive` (`pi-service/src/lib/archive-mount.js`,
   updated `clips-scan.js`/`routes/clips.js`) mounts the CIFS archive
