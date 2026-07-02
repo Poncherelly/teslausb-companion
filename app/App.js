@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Image, Modal, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import AppBanner from './AppBanner';
 import BlePairingScreen from './BlePairingScreen';
 import MusicBrowser from './MusicBrowser';
 import SettingsScreen from './SettingsScreen';
@@ -103,6 +104,8 @@ export default function App() {
   return (
     <View style={styles.container}>
       <StatusBar style="auto" />
+
+      <AppBanner />
 
       <View style={styles.tabBar}>
         <Pressable

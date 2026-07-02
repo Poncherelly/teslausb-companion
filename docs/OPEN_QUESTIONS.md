@@ -98,13 +98,26 @@ period this project was being designed.
     actually connect" answer instead of the pre-reboot process. Not
     resolved — flagging for whoever builds the app-side wizard flow.
 
-13. **Music/Boombox folder structure not yet explored.** teslausb also
-    exposes a `music_disk.bin` backing file (confirmed present on the
-    test Pi, 4GB, alongside `cam_disk.bin` — see
-    `pi-service/src/lib/cam-mount.js` for the equivalent cam-disk
-    mounting approach) but its internal folder layout hasn't been
-    examined yet. The maintainer's intent: Tesla's in-car Boombox
-    feature reads custom audio files from a folder inside/alongside
-    the Music folder — confirm the exact path/convention (mount
-    `music_disk.bin` the same way as `cam_disk.bin` and look) before
-    building music/boombox visibility into the app.
+13. **RESOLVED (2026-07-02):** Music/Boombox folder structure explored
+    and confirmed — see docs/DATA_MODEL.md's `MusicEntry` note and
+    `pi-service/src/lib/music-scan.js`. It's a generic user-organized
+    folder tree, not a fixed two-category split.
+
+14. **RESOLVED (2026-07-02), important lesson for future config
+    writes:** `pi-service/src/ble/wifi-reconfigure.js` used to
+    overwrite the entire `teslausb_setup_variables.conf` with just
+    `SSID`/`WIFIPASS`. Since that file is the *only* persisted copy of
+    the full setup config (archive destination, etc.) once initial
+    setup completes, this silently deleted a real, working
+    `ARCHIVE_SYSTEM`/`ARCHIVE_SERVER` config during repeated
+    WiFi-reconfiguration testing, leaving `archiveloop` stuck checking
+    `localhost` instead of the real NAS for about a day. Fixed by
+    reading and merging with the existing config instead of
+    overwriting it. **Any future code that writes this file (e.g. the
+    new `PUT /system/hostname`, which doesn't touch this file but sets
+    a precedent) must merge, never blindly overwrite.** This device's
+    real archive destination, for reference: CIFS, server
+    `192.168.50.6`, shares `TeslaCam/ModelY` (clips) and `TeslaMusic`
+    (music) — already fully configured via `/etc/fstab` and
+    `/root/.teslaCamArchiveCredentials`, which are independent of
+    `teslausb_setup_variables.conf` and were never at risk.
