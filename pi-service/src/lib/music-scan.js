@@ -20,6 +20,22 @@ function resolveSafePath(mountPoint, relativePath) {
   return target;
 }
 
+// Resolves a specific file for streaming/download (added 2026-07-03 for
+// in-app playback) — must exist and be a real file, not just pass the
+// path-traversal check, since a directory or missing path would make
+// `res.sendFile` behave oddly.
+export async function resolveMusicFile(mountPoint, relativePath) {
+  const filePath = resolveSafePath(mountPoint, relativePath);
+  if (!filePath) return null;
+  try {
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) return null;
+  } catch {
+    return null;
+  }
+  return filePath;
+}
+
 export async function browseMusic(mountPoint, relativePath = "") {
   const dirPath = resolveSafePath(mountPoint, relativePath);
   if (!dirPath) return null;

@@ -6,6 +6,15 @@ All notable changes to this project are documented here, following
 ## [Unreleased]
 
 ### Added
+- **Music playback** — tapping a file in the Music tab (previously a
+  disabled no-op) now streams and plays it via a "Now Playing" bar
+  (`expo-audio`'s `useAudioPlayer`/`useAudioPlayerStatus`, matching the
+  `useVideoPlayer` pattern already used for clips). New `GET
+  /music/download?source=&path=` endpoint streams the file (HTTP Range
+  supported, same as clip downloads). New native dependency
+  (`expo-audio`, SDK-54-matched) — **requires the same fresh EAS
+  dev-client build already needed** for the video download/delete
+  work, not a separate rebuild if bundled together.
 - **Real clip delete, unblocked for the first time**: `state` is now
   computed from real data for `source=pi` clips (`clips-scan.js`'s
   `isArchived` checks whether a Saved/Sentry clip has a matching event

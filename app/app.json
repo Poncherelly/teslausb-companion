@@ -45,7 +45,8 @@
           "savePhotosPermission": "Allow TeslaUSB Companion to save downloaded clips to your Photos library.",
           "isAccessMediaLocationEnabled": false
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "extra": {
       "eas": {
