@@ -97,3 +97,14 @@ period this project was being designed.
     advertising session on next boot needs to carry the "did wifi
     actually connect" answer instead of the pre-reboot process. Not
     resolved — flagging for whoever builds the app-side wizard flow.
+
+13. **Music/Boombox folder structure not yet explored.** teslausb also
+    exposes a `music_disk.bin` backing file (confirmed present on the
+    test Pi, 4GB, alongside `cam_disk.bin` — see
+    `pi-service/src/lib/cam-mount.js` for the equivalent cam-disk
+    mounting approach) but its internal folder layout hasn't been
+    examined yet. The maintainer's intent: Tesla's in-car Boombox
+    feature reads custom audio files from a folder inside/alongside
+    the Music folder — confirm the exact path/convention (mount
+    `music_disk.bin` the same way as `cam_disk.bin` and look) before
+    building music/boombox visibility into the app.
