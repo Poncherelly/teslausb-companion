@@ -2,7 +2,15 @@ import path from "node:path";
 import { Router } from "express";
 import { ensureCamMounted } from "../lib/cam-mount.js";
 import { ensureArchiveMounted } from "../lib/archive-mount.js";
-import { deleteClip, getDownloadPath, getThumbnailPath, parseId, scanClips } from "../lib/clips-scan.js";
+import {
+  deleteClip,
+  getDownloadPath,
+  getFileDownloadPath,
+  getThumbnailPath,
+  listClipFileEntries,
+  parseId,
+  scanClips,
+} from "../lib/clips-scan.js";
 import { isClipLocked, lockClip, unlockClip } from "../lib/download-locks.js";
 
 // Everyday-use clip endpoints — see docs/API.md "Everyday use" section.
@@ -83,10 +91,13 @@ clipsRouter.get("/", async (req, res) => {
   res.json({ clips });
 });
 
-// Streams the representative file only, not every camera angle — see
-// docs/DATA_MODEL.md's real-data note. Never touches `state` (a
-// download is a side path, not an archive-sync transition — see
-// docs/STATE_MACHINES.md).
+// Streams the representative file by default (front camera — see
+// docs/DATA_MODEL.md's real-data note), or a specific file within the
+// clip's own directory via `?file=` (added 2026-07-02 for the Archive
+// tab's folder-drill view, which lets a user open any individual
+// camera angle / sidecar file, not just the representative one). Never
+// touches `state` (a download is a side path, not an archive-sync
+// transition — see docs/STATE_MACHINES.md).
 clipsRouter.get("/:id/download", async (req, res) => {
   if (process.platform !== "linux") {
     return res.status(501).json({ error: "real clips only available on the Pi" });
@@ -95,7 +106,9 @@ clipsRouter.get("/:id/download", async (req, res) => {
   if (!parsed) return res.status(404).json({ error: "clip not found" });
   try {
     const clipsRoot = await getClipsRoot(parsed.source);
-    const filePath = await getDownloadPath(clipsRoot, req.params.id);
+    const filePath = req.query.file
+      ? await getFileDownloadPath(clipsRoot, req.params.id, req.query.file)
+      : await getDownloadPath(clipsRoot, req.params.id);
     if (!filePath) return res.status(404).json({ error: "clip not found" });
 
     lockClip(req.params.id);
@@ -109,6 +122,22 @@ clipsRouter.get("/:id/download", async (req, res) => {
     unlockClip(req.params.id);
     res.status(500).json({ error: err.message });
   }
+});
+
+// Lists every real file in a clip's directory (all camera angles plus
+// sidecar files like event.json/thumb.png for Saved/Sentry events) —
+// powers the Archive tab's folder-drill view (Category -> Event ->
+// Files).
+clipsRouter.get("/:id/files", async (req, res) => {
+  if (process.platform !== "linux") {
+    return res.status(501).json({ error: "real clips only available on the Pi" });
+  }
+  const parsed = parseId(req.params.id);
+  if (!parsed) return res.status(404).json({ error: "clip not found" });
+  const clipsRoot = await getClipsRoot(parsed.source);
+  const files = await listClipFileEntries(clipsRoot, req.params.id);
+  if (!files) return res.status(404).json({ error: "clip not found" });
+  res.json({ files });
 });
 
 // Only valid from state=archived (docs/STATE_MACHINES.md) — clip

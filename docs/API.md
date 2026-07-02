@@ -22,12 +22,28 @@ security model in STATE_MACHINES.md.
 
 ## Everyday use (admin session required)
 
-- `GET /clips?source=pi|archive&category=&state=` — powers both tabs
-- `GET /clips/{id}/download` — decrypt + stream; sets `locked_by_download`
-  for the duration; must never write to `state`
+- `GET /clips?source=pi|archive&category=&state=` — powers the "On
+  device" tab's flat categorized list directly; the Archive tab
+  (`app/ArchiveBrowser.js`, added 2026-07-03) instead uses this same
+  response client-side to derive a folder-drill view (Category ->
+  Event -> Files), matching the Music tab's folder-browser pattern —
+  see docs/DATA_MODEL.md
+- `GET /clips/{id}/files` — added 2026-07-03: lists every real file for
+  one clip (all camera angles plus, for Saved/Sentry events, sidecar
+  files like `event.json`/`event.mp4`/`thumb.png`) as `{files: [{name,
+  size}]}`. Powers the Archive tab's third drill-down level.
+- `GET /clips/{id}/download[?file=<name>]` — decrypt + stream; sets
+  `locked_by_download` for the duration; must never write to `state`.
+  `?file=` (added 2026-07-03) streams one specific file from the
+  clip's own directory instead of the representative front-camera
+  file — `name` must exactly match a real file in that directory
+  (checked against the filesystem, not just pattern-validated) to rule
+  out path traversal.
 - `DELETE /clips/{id}` — **must reject at the API layer** anything not
   `state=archived`; share one internal function with the deletion sweep
-  so there is exactly one code path allowed to delete
+  so there is exactly one code path allowed to delete. Also rejects
+  `source=archive` outright (403) — deleting the archive copy itself
+  isn't supported.
 - `GET /clips/{id}/thumbnail`
 - `GET /music?source=pi|archive&path=<relative path>` — **folder
   browser, not a flat list** (revised 2026-07-02 after real data showed

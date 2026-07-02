@@ -185,6 +185,62 @@ export async function getDownloadPath(clipsRoot, id) {
   return front ? path.join(location.dir, front) : null;
 }
 
+// Lists every real file for a clip (all camera angles plus, for
+// Saved/Sentry events, sidecar files like event.json/event.mp4/
+// thumb.png) — added 2026-07-02 for the Archive tab's folder-drill
+// view (Category -> Event -> Files), unlike listClipFiles() above
+// which only returns camera-angle .mp4s for picking a representative.
+export async function listClipFileEntries(clipsRoot, id) {
+  const parsed = parseId(id);
+  if (!parsed) return null;
+  const location = resolveClipLocation(clipsRoot, parsed.category, parsed.timestampKey);
+  if (!location) return null;
+
+  let names;
+  try {
+    const entries = await fs.readdir(location.dir, { withFileTypes: true });
+    names = entries.filter((e) => e.isFile()).map((e) => e.name);
+  } catch {
+    return null;
+  }
+  // RecentClips' directory is shared across every moment — only this
+  // timestamp's own files belong to this clip, same restriction
+  // listClipFiles() applies.
+  if (!location.isEventDir) {
+    names = names.filter((f) => f.startsWith(`${location.timestampKey}-`));
+  }
+
+  const files = await Promise.all(
+    names.map(async (name) => {
+      const stat = await fs.stat(path.join(location.dir, name));
+      return { name, size: stat.size };
+    })
+  );
+  files.sort((a, b) => a.name.localeCompare(b.name));
+  return files;
+}
+
+// Resolves one specific file within a clip's directory for download —
+// `filename` must exactly match a real entry (checked against the
+// filesystem, not just character-validated) so this can't be used to
+// read arbitrary paths outside the clip's own directory.
+export async function getFileDownloadPath(clipsRoot, id, filename) {
+  const parsed = parseId(id);
+  if (!parsed) return null;
+  if (typeof filename !== "string" || filename === "" || /[\\/]|\.\./.test(filename)) return null;
+  const location = resolveClipLocation(clipsRoot, parsed.category, parsed.timestampKey);
+  if (!location) return null;
+
+  const filePath = path.join(location.dir, filename);
+  try {
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) return null;
+  } catch {
+    return null;
+  }
+  return filePath;
+}
+
 // Also used for the thumbnail endpoint (Saved/Sentry events ship a
 // real thumb.png from the car; RecentClips has no such file).
 export async function getThumbnailPath(clipsRoot, id) {

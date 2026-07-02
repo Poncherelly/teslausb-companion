@@ -5,6 +5,26 @@ All notable changes to this project are documented here, following
 
 ## [Unreleased]
 
+### Added
+- Archive tab redesigned as a folder-drill browser (`app/
+  ArchiveBrowser.js`) — Category (SavedClips/SentryClips) -> Event ->
+  Files — mirroring the Music tab's folder-browser pattern per explicit
+  request 2026-07-03, replacing the flat categorized list it briefly
+  shared with the On Device tab. Category/event levels are derived
+  client-side from the existing `GET /clips?source=archive` response;
+  only the file level needs a new request (`GET /clips/{id}/files`),
+  since eagerly listing every file for every event up front would be
+  far slower than the already-slow ~20s full clip scan. Tapping any
+  individual file (not just the representative front-camera one) plays
+  it via `GET /clips/{id}/download?file=`, both new endpoints backed by
+  `clips-scan.js`'s `listClipFileEntries`/`getFileDownloadPath`
+  (filename validated against the real filesystem, not just
+  pattern-checked, to rule out path traversal). Confirmed against the
+  real archive: it has exactly two top-level folders (SavedClips,
+  SentryClips) — no RecentClips, and SavedClips is real and non-empty
+  (65 events) — contradicting an initial report that seemed to describe
+  a different, unidentified view of the storage.
+
 ### Fixed
 - **Real bug, found 2026-07-02 the day after shipping the Archive tab**:
   the Archive tab could show on-device clips instead of real archive
