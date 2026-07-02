@@ -29,12 +29,25 @@ yet either.
 
 ## ArchiveDestination
 
+Original design (below) covers multiple simultaneous destinations
+across local and cloud backends. **Only a single CIFS destination is
+actually implemented as of 2026-07-02** — `GET /archive/config` /
+`PUT /archive/config` (see API.md), backed directly by `/etc/fstab` +
+`/root/.teslaCamArchiveCredentials`, matching how upstream teslausb
+itself expects a CIFS archive to be configured. The fields below remain
+the target shape for when multi-destination/cloud support is built:
+
 - `id`
 - `type`: `cifs` | `rsync` | `nfs` | `rclone:gdrive` | `rclone:onedrive` | ...
 - `scope`: `local` | `cloud`
 - `credentials` — encrypted at rest on the Pi, never on the phone
 - `encrypt_before_upload`: bool — defaults true when `scope=cloud`
 - `enabled`: bool
+
+What's actually returned by `GET /archive/config` today: `configured`
+(bool), `server`, `shareName` (clips), `musicShareName` (nullable),
+`shareUser`, `reachable` (bool|null, live TCP probe of port 445) — no
+`credentials` field, the password is write-only.
 
 ## ArchiveMode
 

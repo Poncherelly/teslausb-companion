@@ -6,6 +6,24 @@ All notable changes to this project are documented here, following
 ## [Unreleased]
 
 ### Added
+- Real "Archive settings" in the Settings tab, replacing the disabled
+  placeholder — `GET /archive/config` / `PUT /archive/config`
+  (`pi-service/src/lib/archive-config.js`, `src/routes/archive.js`)
+  read/write the CIFS destination (server, clips share, optional music
+  share, username/password) directly via `/etc/fstab` +
+  `/root/.teslaCamArchiveCredentials` + `ARCHIVE_SYSTEM`/
+  `ARCHIVE_SERVER` in `teslausb_setup_variables.conf`, mirroring how
+  upstream teslausb itself expects a CIFS archive to be configured.
+  `GET` never returns the password; `PUT` reboots to apply, same UX as
+  device rename. `/etc/fstab` and the credentials file are backed up
+  (`.bak-<timestamp>`) before every write, given this touches the only
+  working archive path on the device. Scoped down from the original
+  multi-destination/rclone design in DATA_MODEL.md to match what's
+  actually deployed — see docs/API.md and docs/DATA_MODEL.md for the
+  full scoping note.
+- Renaming the device from Settings now has its own `DeviceNameRow` UI
+  (was previously only reachable via a raw `curl` to `PUT
+  /system/hostname`).
 - Fourth "Settings" tab, replacing the standalone "+ Device" button —
   houses "Set up new device" (opens the BLE pairing screen) and a
   disabled "Archive settings" placeholder for future work.

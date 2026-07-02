@@ -37,11 +37,24 @@ security model in STATE_MACHINES.md.
   `{path, entries: [{name, type: "folder"|"file", size?}]}` for the
   requested directory. Implemented in `pi-service/src/lib/music-scan.js`.
   `DELETE /music/{id}`, `PUT /settings/music` not implemented yet.
-- `GET /archive/destinations`, `POST /archive/destinations`,
-  `PATCH /archive/destinations/{id}`, `DELETE /archive/destinations/{id}`
+- `GET /archive/config`, `PUT /archive/config` — **revised 2026-07-02,
+  scoped down from the original multi-destination
+  `/archive/destinations` design** to match what's actually deployed:
+  a single CIFS destination (server, clips share, optional music
+  share, username/password), read/written via `/etc/fstab` +
+  `/root/.teslaCamArchiveCredentials` + `ARCHIVE_SYSTEM`/
+  `ARCHIVE_SERVER` in `teslausb_setup_variables.conf`. `GET` never
+  returns the password. `PUT` reboots to apply, same pattern as
+  `PUT /system/hostname`. Multi-destination management and cloud
+  (rclone) destinations are still future work — see
+  docs/ARCHIVE_AND_TESLA.md. Implemented in
+  `pi-service/src/lib/archive-config.js` / `src/routes/archive.js`.
 - `PUT /settings/archive-mode` — private/convenient toggle, revisitable
-- `GET /system/status` — storage used/free, queue depth, BLE state,
-  Tesla token health (Tier 2)
+  — not implemented yet, only one CIFS destination exists so there's no
+  mode to toggle between yet
+- `GET /system/status` — hostname, version (storage used/free, queue
+  depth, BLE state, Tesla token health still TODO)
+- `PUT /system/hostname` — rename the Pi, reboots to apply
 - `POST /system/pairing-mode` — explicit re-enable trigger, physical
   button or authenticated web UI action only
 - `GET /events` — SSE/WebSocket stream for live archive progress, BLE
