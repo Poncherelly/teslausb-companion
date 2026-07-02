@@ -6,9 +6,15 @@ implementation starts.
 
 ## Clip
 
-- `id`
+- `id` — encodes `source` + `category` + timestamp as
+  `${source}:${category}:${timestampKey}` (colon-delimited, since the
+  Tesla timestamp format itself contains hyphens) — see
+  `pi-service/src/lib/clips-scan.js`
 - `filename`
 - `category`: `sentry` | `saved` | `recent`
+- `source`: `pi` | `archive` — added 2026-07-02 alongside `GET
+  /clips?source=` (API.md); `recent` never appears for `source=archive`
+  since RecentClips (the rolling buffer) isn't synced to the archive
 - `timestamp`
 - `size`
 - `checksum`
@@ -24,8 +30,18 @@ the whole camera-angle group — `filename`/`size` come from the front
 camera / summed across all angles — not one Clip per file. Revisit if
 per-angle download/delete is ever needed. `checksum` is not populated
 by the listing endpoint (expensive to hash video files on every
-request); it belongs to archive-sync verification, which doesn't exist
-yet either.
+request) and there's still no checksum-based archive-sync verification
+step — `archiveloop` itself (the real, working sync process) doesn't
+expose one.
+
+**`state` is still not computed from real data (2026-07-02):** every
+real clip from both `source=pi` and `source=archive` currently reports
+`state: "new"` unconditionally — nothing cross-references whether a
+given on-device clip has a matching copy in the archive yet. This is
+why `DELETE /clips/{id}` still rejects every real request (correctly,
+per the `state=archived` guardrail) even though the archive itself is
+real and working. Building that correlation is the natural next step
+once on-device delete-after-archive is wanted.
 
 ## ArchiveDestination
 

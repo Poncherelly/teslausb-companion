@@ -22,13 +22,28 @@ function parseTeslaTimestamp(str) {
   return `${date}T${hour}:${minute}:${second}`;
 }
 
+// Ids need to carry both source ("pi" | "archive") and category, but
+// `timestampKey` itself contains hyphens (2025-12-02_17-26-30), so a
+// hyphen-delimited id can't be split unambiguously once a second
+// segment is added. Colon is safe — it never appears in any segment.
+function buildId(source, category, timestampKey) {
+  return `${source}:${category}:${timestampKey}`;
+}
+
+export function parseId(id) {
+  const parts = typeof id === "string" ? id.split(":") : [];
+  if (parts.length !== 3) return null;
+  const [source, category, timestampKey] = parts;
+  return { source, category, timestampKey };
+}
+
 async function sumSizes(dir, filenames) {
   const stats = await Promise.all(filenames.map((f) => fs.stat(path.join(dir, f))));
   return stats.reduce((sum, s) => sum + s.size, 0);
 }
 
 // RecentClips: flat directory, files named `{timestamp}-{camera}.mp4`.
-async function scanRecentClips(dir, category) {
+async function scanRecentClips(dir, category, source) {
   let entries;
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
@@ -51,9 +66,10 @@ async function scanRecentClips(dir, category) {
     const totalSize = await sumSizes(dir, files.map((f) => f.name));
     const front = files.find((f) => f.camera === "front") ?? files[0];
     clips.push({
-      id: `${category}-${timestampKey}`,
+      id: buildId(source, category, timestampKey),
       filename: front.name,
       category,
+      source,
       timestamp: parseTeslaTimestamp(timestampKey),
       size: totalSize,
       state: "new",
@@ -66,7 +82,7 @@ async function scanRecentClips(dir, category) {
 
 // SavedClips/SentryClips: one subdirectory per event, named by
 // timestamp, containing camera files plus event.json/event.mp4/thumb.png.
-async function scanEventClips(dir, category) {
+async function scanEventClips(dir, category, source) {
   let entries;
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
@@ -92,9 +108,10 @@ async function scanEventClips(dir, category) {
     const front = mp4s.find((f) => f.name.includes("-front.mp4")) ?? mp4s[0];
 
     clips.push({
-      id: `${category}-${entry.name}`,
+      id: buildId(source, category, entry.name),
       filename: front.name,
       category,
+      source,
       timestamp: parseTeslaTimestamp(entry.name),
       size: totalSize,
       state: "new",
@@ -105,12 +122,18 @@ async function scanEventClips(dir, category) {
   return clips;
 }
 
-export async function scanClips(mountPoint) {
-  const base = path.join(mountPoint, "TeslaCam");
+// `clipsRoot` is the directory directly containing RecentClips/
+// SavedClips/SentryClips — for the on-device cam disk that's
+// `{mountPoint}/TeslaCam`, for the archive share it's the share root
+// itself (confirmed 2026-07-02: the archive only has SavedClips/
+// SentryClips — RecentClips is never synced there, matching
+// docs/ARCHIVE_AND_TESLA.md's guidance against archiving the full
+// rolling buffer).
+export async function scanClips(clipsRoot, source) {
   const [recent, saved, sentry] = await Promise.all([
-    scanRecentClips(path.join(base, "RecentClips"), "recent"),
-    scanEventClips(path.join(base, "SavedClips"), "saved"),
-    scanEventClips(path.join(base, "SentryClips"), "sentry"),
+    scanRecentClips(path.join(clipsRoot, "RecentClips"), "recent", source),
+    scanEventClips(path.join(clipsRoot, "SavedClips"), "saved", source),
+    scanEventClips(path.join(clipsRoot, "SentryClips"), "sentry", source),
   ]);
   return [...recent, ...saved, ...sentry];
 }
@@ -121,18 +144,14 @@ const CATEGORY_DIRS = {
   sentry: "SentryClips",
 };
 
-// Ids are `${category}-${timestampKey}` (see scan functions above).
-// `timestampKey` itself contains hyphens, so split on the *first* one —
-// category names never contain a hyphen.
-function resolveClipLocation(mountPoint, id) {
-  const separator = id.indexOf("-");
-  if (separator === -1) return null;
-  const category = id.slice(0, separator);
-  const timestampKey = id.slice(separator + 1);
+// `clipsRoot` is the same "directly contains RecentClips/SavedClips/
+// SentryClips" directory scanClips() takes — caller resolves which
+// mountpoint that is based on the id's `source` segment (see parseId).
+function resolveClipLocation(clipsRoot, category, timestampKey) {
   const categoryDir = CATEGORY_DIRS[category];
   if (!categoryDir) return null;
 
-  const base = path.join(mountPoint, "TeslaCam", categoryDir);
+  const base = path.join(clipsRoot, categoryDir);
   return category === "recent"
     ? { category, timestampKey, dir: base, isEventDir: false }
     : { category, timestampKey, dir: path.join(base, timestampKey), isEventDir: true };
@@ -156,8 +175,10 @@ function pickRepresentative(filenames) {
 
 // Download streams a single representative file (front camera), not
 // all camera angles — see the multi-camera-grouping note above.
-export async function getDownloadPath(mountPoint, id) {
-  const location = resolveClipLocation(mountPoint, id);
+export async function getDownloadPath(clipsRoot, id) {
+  const parsed = parseId(id);
+  if (!parsed) return null;
+  const location = resolveClipLocation(clipsRoot, parsed.category, parsed.timestampKey);
   if (!location) return null;
   const files = await listClipFiles(location);
   const front = pickRepresentative(files);
@@ -166,8 +187,10 @@ export async function getDownloadPath(mountPoint, id) {
 
 // Also used for the thumbnail endpoint (Saved/Sentry events ship a
 // real thumb.png from the car; RecentClips has no such file).
-export async function getThumbnailPath(mountPoint, id) {
-  const location = resolveClipLocation(mountPoint, id);
+export async function getThumbnailPath(clipsRoot, id) {
+  const parsed = parseId(id);
+  if (!parsed) return null;
+  const location = resolveClipLocation(clipsRoot, parsed.category, parsed.timestampKey);
   if (!location || !location.isEventDir) return null;
   const thumbPath = path.join(location.dir, "thumb.png");
   try {
@@ -181,9 +204,15 @@ export async function getThumbnailPath(mountPoint, id) {
 // Deletes the whole clip: for events, the entire event directory
 // (camera files + event.json/event.mp4/thumb.png); for RecentClips,
 // just the camera files matching this timestamp (the directory is
-// shared across every RecentClips moment).
-export async function deleteClip(mountPoint, id) {
-  const location = resolveClipLocation(mountPoint, id);
+// shared across every RecentClips moment). Callers must reject
+// `source === "archive"` before calling this — deleting the archive
+// copy itself (the backup) is a different, riskier operation than
+// deleting the on-device copy once it's confirmed archived, and isn't
+// supported yet.
+export async function deleteClip(clipsRoot, id) {
+  const parsed = parseId(id);
+  if (!parsed) return false;
+  const location = resolveClipLocation(clipsRoot, parsed.category, parsed.timestampKey);
   if (!location) return false;
 
   if (location.isEventDir) {
