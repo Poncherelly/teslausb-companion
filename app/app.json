@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.poncherelly.teslausbcompanion"
@@ -36,7 +36,8 @@
         {
           "bluetoothAlwaysPermission": "Allow TeslaUSB Companion to connect to your Pi over Bluetooth during setup"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {
