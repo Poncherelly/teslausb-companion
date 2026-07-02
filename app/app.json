@@ -37,7 +37,15 @@
           "bluetoothAlwaysPermission": "Allow TeslaUSB Companion to connect to your Pi over Bluetooth during setup"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow TeslaUSB Companion to save downloaded clips to your Photos library.",
+          "savePhotosPermission": "Allow TeslaUSB Companion to save downloaded clips to your Photos library.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ]
     ],
     "extra": {
       "eas": {

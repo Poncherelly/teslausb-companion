@@ -7,6 +7,7 @@ import {
   getDownloadPath,
   getFileDownloadPath,
   getThumbnailPath,
+  isArchived,
   listClipFileEntries,
   parseId,
   scanClips,
@@ -70,11 +71,36 @@ async function getClipsRoot(source) {
   return path.join(mountPoint, "TeslaCam");
 }
 
+// Cross-references on-device Saved/Sentry clips against the archive to
+// compute real `state` (added 2026-07-03, replacing the previously
+// hardcoded `state: "new"` for every real clip — see
+// docs/DATA_MODEL.md). If the archive isn't reachable/configured at
+// all, every clip is left as `new` rather than failing the whole
+// listing — an unreachable archive shouldn't break "On device"
+// browsing.
+async function annotateArchivedState(clips) {
+  let archiveRoot;
+  try {
+    archiveRoot = await ensureArchiveMounted();
+  } catch {
+    return clips;
+  }
+  return Promise.all(
+    clips.map(async (c) => {
+      const parsed = parseId(c.id);
+      if (!parsed) return c;
+      const archived = await isArchived(archiveRoot, parsed.category, parsed.timestampKey);
+      return archived ? { ...c, state: "archived" } : c;
+    })
+  );
+}
+
 async function getClips(source) {
   if (process.platform !== "linux") return source === "archive" ? [] : FAKE_CLIPS;
   try {
     const clipsRoot = await getClipsRoot(source);
-    const clips = await scanClips(clipsRoot, source);
+    let clips = await scanClips(clipsRoot, source);
+    if (source === "pi") clips = await annotateArchivedState(clips);
     return clips.map((c) => ({ ...c, locked_by_download: isClipLocked(c.id) }));
   } catch (err) {
     console.error(`Falling back to empty clip list — ${source} mount failed:`, err.message);
@@ -140,11 +166,11 @@ clipsRouter.get("/:id/files", async (req, res) => {
   res.json({ files });
 });
 
-// Only valid from state=archived (docs/STATE_MACHINES.md) — clip
-// listings don't cross-reference the archive to compute real state yet
-// (everything real is still hardcoded `new` in clips-scan.js), so this
-// correctly rejects every request until that correlation is built.
-// That's the intended safety behavior, not a bug.
+// Only valid from state=archived (docs/STATE_MACHINES.md). Verifies
+// live against the archive right before deleting (added 2026-07-03)
+// rather than trusting a possibly-stale `state` from an earlier GET
+// /clips response — this is the actual safety gate, not the listing's
+// annotation, which is just for display.
 clipsRouter.delete("/:id", async (req, res) => {
   if (process.platform !== "linux") {
     return res.status(501).json({ error: "real clips only available on the Pi" });
@@ -155,17 +181,21 @@ clipsRouter.delete("/:id", async (req, res) => {
     return res.status(403).json({ error: "deleting from the archive itself isn't supported" });
   }
 
-  const clipsRoot = await getClipsRoot(parsed.source);
-  const clips = await scanClips(clipsRoot, parsed.source);
-  const clip = clips.find((c) => c.id === req.params.id);
-  if (!clip) return res.status(404).json({ error: "clip not found" });
-  if (clip.state !== "archived") {
+  let archived = false;
+  try {
+    const archiveRoot = await ensureArchiveMounted();
+    archived = await isArchived(archiveRoot, parsed.category, parsed.timestampKey);
+  } catch {
+    archived = false;
+  }
+  if (!archived) {
     return res.status(403).json({ error: "only archived clips can be deleted" });
   }
   if (isClipLocked(req.params.id)) {
     return res.status(409).json({ error: "clip is currently being downloaded" });
   }
 
+  const clipsRoot = await getClipsRoot(parsed.source);
   const deleted = await deleteClip(clipsRoot, req.params.id);
   if (!deleted) return res.status(404).json({ error: "clip not found" });
   res.status(204).send();

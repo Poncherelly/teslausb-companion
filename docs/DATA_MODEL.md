@@ -34,14 +34,17 @@ request) and there's still no checksum-based archive-sync verification
 step — `archiveloop` itself (the real, working sync process) doesn't
 expose one.
 
-**`state` is still not computed from real data (2026-07-02):** every
-real clip from both `source=pi` and `source=archive` currently reports
-`state: "new"` unconditionally — nothing cross-references whether a
-given on-device clip has a matching copy in the archive yet. This is
-why `DELETE /clips/{id}` still rejects every real request (correctly,
-per the `state=archived` guardrail) even though the archive itself is
-real and working. Building that correlation is the natural next step
-once on-device delete-after-archive is wanted.
+**`state` is now computed from real data for `source=pi` (2026-07-03):**
+`GET /clips?source=pi` cross-references each Saved/Sentry clip against
+the archive (`clips-scan.js`'s `isArchived`, checking for a matching
+event folder) and reports `state: "archived"` when a copy exists there,
+`"new"` otherwise — replacing the previously-hardcoded `"new"` for
+everything. `source=archive` clips still always report `"new"` (state
+tracks *the on-device copy's* archival progress; an archive-sourced
+clip's "on-device" concept doesn't apply). RecentClips is never
+archived (the rolling buffer isn't synced there) so always reports
+`"new"`. This is what unblocked `DELETE /clips/{id}` for real clips —
+see docs/API.md.
 
 ## ArchiveDestination
 

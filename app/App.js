@@ -1,7 +1,19 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, Image, Modal, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Pressable,
+  SectionList,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { File, Paths } from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import ArchiveBrowser from './ArchiveBrowser';
 import AppBanner from './AppBanner';
 import BlePairingScreen from './BlePairingScreen';
@@ -44,6 +56,7 @@ function ClipRow({ item, onPress, styles }) {
         <Text style={styles.filename}>{item.filename}</Text>
         <Text style={styles.meta}>
           {new Date(item.timestamp).toLocaleString()} · {(item.size / 1024 / 1024).toFixed(0)} MB
+          {item.state === 'archived' ? ' · Archived' : ''}
         </Text>
       </View>
     </Pressable>
@@ -56,7 +69,18 @@ function ClipRow({ item, onPress, styles }) {
 // first. `clip.file` (set by ArchiveBrowser's per-file playback) plays
 // that specific camera-angle/sidecar file instead of the clip's
 // representative front-camera file.
-function VideoPlayerModal({ clip, onClose, styles }) {
+//
+// "Delete from Pi" only ever shows for on-device clips with a real
+// confirmed-archived state (clip.source === 'pi' && clip.state ===
+// 'archived') — archive-sourced plays (from ArchiveBrowser) never set
+// `source`/`state` at all, so the button is correctly absent there
+// without needing a separate check; the backend independently
+// re-verifies archived status at delete time regardless (see
+// pi-service/src/routes/clips.js).
+function VideoPlayerModal({ clip, onClose, onDeleted, styles }) {
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const url = clip
     ? `${PI_SERVICE_URL}/clips/${encodeURIComponent(clip.id)}/download${
         clip.file ? `?file=${encodeURIComponent(clip.file)}` : ''
@@ -66,6 +90,64 @@ function VideoPlayerModal({ clip, onClose, styles }) {
     p.play();
   });
 
+  const canDelete = clip?.source === 'pi' && clip?.state === 'archived';
+  const filename = clip?.file ?? clip?.filename ?? 'clip.mp4';
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      // writeOnly=true — this app only ever saves clips, never reads the
+      // existing library, so this triggers the narrower "add photos
+      // only" permission prompt on iOS instead of full library access.
+      const permission = await MediaLibrary.requestPermissionsAsync(true);
+      if (!permission.granted) {
+        Alert.alert('Permission needed', 'Allow Photos access in your phone settings to save clips.');
+        return;
+      }
+      const destination = new File(Paths.cache, filename);
+      const downloaded = await File.downloadFileAsync(url, destination);
+      await MediaLibrary.saveToLibraryAsync(downloaded.uri);
+      downloaded.delete();
+      Alert.alert('Saved', 'Clip saved to your Photos library.');
+    } catch (err) {
+      Alert.alert('Save failed', err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleDelete() {
+    Alert.alert(
+      'Delete this clip?',
+      'This deletes it from the Pi only — the archived copy is unaffected. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              const res = await fetch(`${PI_SERVICE_URL}/clips/${encodeURIComponent(clip.id)}`, {
+                method: 'DELETE',
+              });
+              if (!res.ok && res.status !== 204) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || 'Failed to delete clip');
+              }
+              onDeleted?.(clip.id);
+              onClose();
+            } catch (err) {
+              Alert.alert('Delete failed', err.message);
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   return (
     <Modal visible={clip != null} animationType="slide" onRequestClose={onClose}>
       <View style={styles.playerContainer}>
@@ -74,6 +156,30 @@ function VideoPlayerModal({ clip, onClose, styles }) {
         </Pressable>
         {clip && (
           <VideoView style={styles.playerVideo} player={player} allowsFullscreen contentFit="contain" />
+        )}
+        {clip && (
+          <View style={styles.playerActions}>
+            <Pressable style={styles.playerActionButton} onPress={handleSave} disabled={saving || deleting}>
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.playerActionText}>Save to Photos</Text>
+              )}
+            </Pressable>
+            {canDelete && (
+              <Pressable
+                style={[styles.playerActionButton, styles.playerActionButtonDanger]}
+                onPress={handleDelete}
+                disabled={saving || deleting}
+              >
+                {deleting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.playerActionText}>Delete from Pi</Text>
+                )}
+              </Pressable>
+            )}
+          </View>
         )}
       </View>
     </Modal>
@@ -126,6 +232,10 @@ export default function App() {
       cancelled = true;
     };
   }, [tab]);
+
+  function handleClipDeleted(id) {
+    setClips((prev) => prev.filter((c) => c.id !== id));
+  }
 
   return (
     <View style={styles.container}>
@@ -194,7 +304,12 @@ export default function App() {
       {tab === 'music' && <MusicBrowser />}
       {tab === 'settings' && <SettingsScreen onSetupDevice={() => setPairingVisible(true)} />}
 
-      <VideoPlayerModal clip={playingClip} onClose={() => setPlayingClip(null)} styles={styles} />
+      <VideoPlayerModal
+        clip={playingClip}
+        onClose={() => setPlayingClip(null)}
+        onDeleted={handleClipDeleted}
+        styles={styles}
+      />
       <BlePairingScreen visible={pairingVisible} onClose={() => setPairingVisible(false)} />
     </View>
   );
@@ -321,6 +436,30 @@ function createStyles(theme) {
     playerVideo: {
       width: '100%',
       height: '100%',
+    },
+    playerActions: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 12,
+      paddingVertical: 16,
+      paddingHorizontal: 16,
+    },
+    playerActionButton: {
+      flex: 1,
+      maxWidth: 200,
+      paddingVertical: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 8,
+      backgroundColor: 'rgba(255,255,255,0.15)',
+    },
+    playerActionButtonDanger: {
+      backgroundColor: theme.error,
+    },
+    playerActionText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '600',
     },
   });
 }
