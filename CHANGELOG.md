@@ -6,6 +6,20 @@ All notable changes to this project are documented here, following
 ## [Unreleased]
 
 ### Added
+- Archive tab now shows real clips instead of a placeholder message —
+  `GET /clips?source=archive` (`pi-service/src/lib/archive-mount.js`,
+  updated `clips-scan.js`/`routes/clips.js`) mounts the CIFS archive
+  share on demand (already defined in `/etc/fstab` via Archive
+  settings) and reuses the same Saved/Sentry/Recent scan logic as the
+  on-device tab. Confirmed against the real archive share that it has
+  no `TeslaCam/` wrapper folder (unlike the local disk image) and never
+  has `RecentClips` (the rolling buffer isn't synced there). Clip ids
+  now encode `source:category:timestamp` (colon-delimited, since the
+  timestamp format itself contains hyphens) so download/thumbnail
+  requests know which mount to resolve against without a separate query
+  param. Deleting from the archive itself is explicitly rejected (403)
+  — out of scope, and meaningfully riskier than deleting an on-device
+  copy once archived.
 - Real "Archive settings" in the Settings tab, replacing the disabled
   placeholder — `GET /archive/config` / `PUT /archive/config`
   (`pi-service/src/lib/archive-config.js`, `src/routes/archive.js`)

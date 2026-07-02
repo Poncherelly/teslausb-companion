@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Image, Modal, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import AppBanner from './AppBanner';
 import BlePairingScreen from './BlePairingScreen';
@@ -89,19 +89,24 @@ export default function App() {
   const styles = createStyles(theme);
   const [tab, setTab] = useState('device');
   const [clips, setClips] = useState([]);
+  const [clipsLoading, setClipsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [playingClip, setPlayingClip] = useState(null);
   const [pairingVisible, setPairingVisible] = useState(false);
 
   useEffect(() => {
-    if (tab !== 'device') return;
-    fetch(`${PI_SERVICE_URL}/clips`)
+    if (tab !== 'device' && tab !== 'archive') return;
+    const source = tab === 'archive' ? 'archive' : 'pi';
+    setClips([]);
+    setClipsLoading(true);
+    fetch(`${PI_SERVICE_URL}/clips?source=${source}`)
       .then((res) => res.json())
       .then((data) => {
         setClips(data.clips);
         setError(null);
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message))
+      .finally(() => setClipsLoading(false));
   }, [tab]);
 
   return (
@@ -147,23 +152,29 @@ export default function App() {
 
       {error && <Text style={styles.error}>Error: {error}</Text>}
 
-      {tab === 'device' && (
-        <SectionList
-          style={styles.list}
-          sections={groupIntoSections(clips)}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <ClipRow item={item} onPress={setPlayingClip} styles={styles} />}
-          renderSectionHeader={({ section }) => <SectionHeader section={section} styles={styles} />}
-          stickySectionHeadersEnabled
-        />
-      )}
-      {tab === 'archive' && (
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderText}>
-            Archive browsing isn't implemented yet — no archive-sync
-            process exists to report what's been backed up.
-          </Text>
-        </View>
+      {(tab === 'device' || tab === 'archive') && (
+        clipsLoading ? (
+          <View style={styles.placeholder}>
+            <ActivityIndicator color={theme.textMuted} />
+          </View>
+        ) : groupIntoSections(clips).length > 0 ? (
+          <SectionList
+            style={styles.list}
+            sections={groupIntoSections(clips)}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <ClipRow item={item} onPress={setPlayingClip} styles={styles} />}
+            renderSectionHeader={({ section }) => <SectionHeader section={section} styles={styles} />}
+            stickySectionHeadersEnabled
+          />
+        ) : (
+          <View style={styles.placeholder}>
+            <Text style={styles.placeholderText}>
+              {tab === 'archive'
+                ? 'No archived clips yet — check Settings to confirm the archive destination is configured.'
+                : 'No clips found on the device.'}
+            </Text>
+          </View>
+        )
       )}
       {tab === 'music' && <MusicBrowser />}
       {tab === 'settings' && <SettingsScreen onSetupDevice={() => setPairingVisible(true)} />}

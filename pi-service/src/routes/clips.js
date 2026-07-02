@@ -1,6 +1,8 @@
+import path from "node:path";
 import { Router } from "express";
 import { ensureCamMounted } from "../lib/cam-mount.js";
-import { deleteClip, getDownloadPath, getThumbnailPath, scanClips } from "../lib/clips-scan.js";
+import { ensureArchiveMounted } from "../lib/archive-mount.js";
+import { deleteClip, getDownloadPath, getThumbnailPath, parseId, scanClips } from "../lib/clips-scan.js";
 import { isClipLocked, lockClip, unlockClip } from "../lib/download-locks.js";
 
 // Everyday-use clip endpoints — see docs/API.md "Everyday use" section.
@@ -15,6 +17,7 @@ const FAKE_CLIPS = [
     id: "1",
     filename: "2026-06-30_18-42-10-front.mp4",
     category: "sentry",
+    source: "pi",
     timestamp: "2026-06-30T18:42:10Z",
     size: 52428800,
     checksum: "abc123",
@@ -26,6 +29,7 @@ const FAKE_CLIPS = [
     id: "2",
     filename: "2026-07-01_08-15-03-front.mp4",
     category: "recent",
+    source: "pi",
     timestamp: "2026-07-01T08:15:03Z",
     size: 41943040,
     checksum: "def456",
@@ -37,6 +41,7 @@ const FAKE_CLIPS = [
     id: "3",
     filename: "2026-07-01_09-02-44-front.mp4",
     category: "saved",
+    source: "pi",
     timestamp: "2026-07-01T09:02:44Z",
     size: 62914560,
     checksum: "ghi789",
@@ -46,21 +51,32 @@ const FAKE_CLIPS = [
   },
 ];
 
-async function getClips() {
-  if (process.platform !== "linux") return FAKE_CLIPS;
+// `source=pi` (default) is the on-device cam disk; `source=archive` is
+// the CIFS backup share configured in Settings (see archive-config.js).
+// The archive share root directly contains RecentClips/SavedClips/
+// SentryClips — no "TeslaCam" wrapper folder like the local disk image
+// has (confirmed 2026-07-02 against the real share).
+async function getClipsRoot(source) {
+  if (source === "archive") return ensureArchiveMounted();
+  const mountPoint = await ensureCamMounted();
+  return path.join(mountPoint, "TeslaCam");
+}
+
+async function getClips(source) {
+  if (process.platform !== "linux") return source === "archive" ? [] : FAKE_CLIPS;
   try {
-    const mountPoint = await ensureCamMounted();
-    const clips = await scanClips(mountPoint);
+    const clipsRoot = await getClipsRoot(source);
+    const clips = await scanClips(clipsRoot, source);
     return clips.map((c) => ({ ...c, locked_by_download: isClipLocked(c.id) }));
   } catch (err) {
-    console.error("Falling back to fake clips — cam disk mount failed:", err.message);
-    return FAKE_CLIPS;
+    console.error(`Falling back to empty clip list — ${source} mount failed:`, err.message);
+    return source === "archive" ? [] : FAKE_CLIPS;
   }
 }
 
 clipsRouter.get("/", async (req, res) => {
-  const { category, state } = req.query;
-  let clips = await getClips();
+  const { category, state, source = "pi" } = req.query;
+  let clips = await getClips(source);
   if (category) clips = clips.filter((c) => c.category === category);
   if (state) clips = clips.filter((c) => c.state === state);
   clips = [...clips].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
@@ -75,9 +91,11 @@ clipsRouter.get("/:id/download", async (req, res) => {
   if (process.platform !== "linux") {
     return res.status(501).json({ error: "real clips only available on the Pi" });
   }
+  const parsed = parseId(req.params.id);
+  if (!parsed) return res.status(404).json({ error: "clip not found" });
   try {
-    const mountPoint = await ensureCamMounted();
-    const filePath = await getDownloadPath(mountPoint, req.params.id);
+    const clipsRoot = await getClipsRoot(parsed.source);
+    const filePath = await getDownloadPath(clipsRoot, req.params.id);
     if (!filePath) return res.status(404).json({ error: "clip not found" });
 
     lockClip(req.params.id);
@@ -93,16 +111,23 @@ clipsRouter.get("/:id/download", async (req, res) => {
   }
 });
 
-// Only valid from state=archived (docs/STATE_MACHINES.md) — with no
-// archive-sync process built yet, every real clip is currently `new`,
-// so this will correctly reject every request until that exists. That
-// is the intended safety behavior, not a bug.
+// Only valid from state=archived (docs/STATE_MACHINES.md) — clip
+// listings don't cross-reference the archive to compute real state yet
+// (everything real is still hardcoded `new` in clips-scan.js), so this
+// correctly rejects every request until that correlation is built.
+// That's the intended safety behavior, not a bug.
 clipsRouter.delete("/:id", async (req, res) => {
   if (process.platform !== "linux") {
     return res.status(501).json({ error: "real clips only available on the Pi" });
   }
-  const mountPoint = await ensureCamMounted();
-  const clips = await scanClips(mountPoint);
+  const parsed = parseId(req.params.id);
+  if (!parsed) return res.status(404).json({ error: "clip not found" });
+  if (parsed.source === "archive") {
+    return res.status(403).json({ error: "deleting from the archive itself isn't supported" });
+  }
+
+  const clipsRoot = await getClipsRoot(parsed.source);
+  const clips = await scanClips(clipsRoot, parsed.source);
   const clip = clips.find((c) => c.id === req.params.id);
   if (!clip) return res.status(404).json({ error: "clip not found" });
   if (clip.state !== "archived") {
@@ -112,7 +137,7 @@ clipsRouter.delete("/:id", async (req, res) => {
     return res.status(409).json({ error: "clip is currently being downloaded" });
   }
 
-  const deleted = await deleteClip(mountPoint, req.params.id);
+  const deleted = await deleteClip(clipsRoot, req.params.id);
   if (!deleted) return res.status(404).json({ error: "clip not found" });
   res.status(204).send();
 });
@@ -121,8 +146,10 @@ clipsRouter.get("/:id/thumbnail", async (req, res) => {
   if (process.platform !== "linux") {
     return res.status(501).json({ error: "real clips only available on the Pi" });
   }
-  const mountPoint = await ensureCamMounted();
-  const thumbPath = await getThumbnailPath(mountPoint, req.params.id);
+  const parsed = parseId(req.params.id);
+  if (!parsed) return res.status(404).json({ error: "no thumbnail for this clip" });
+  const clipsRoot = await getClipsRoot(parsed.source);
+  const thumbPath = await getThumbnailPath(clipsRoot, req.params.id);
   if (!thumbPath) return res.status(404).json({ error: "no thumbnail for this clip" });
   res.sendFile(thumbPath);
 });
