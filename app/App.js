@@ -97,7 +97,10 @@ export default function App() {
     if (tab !== 'device') return;
     fetch(`${PI_SERVICE_URL}/clips`)
       .then((res) => res.json())
-      .then((data) => setClips(data.clips))
+      .then((data) => {
+        setClips(data.clips);
+        setError(null);
+      })
       .catch((err) => setError(err.message));
   }, [tab]);
 

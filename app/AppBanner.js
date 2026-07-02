@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { PI_SERVICE_URL } from './config';
 import { useTheme } from './theme';
 
-// Placeholder mark, not a designed logo — swap in a real app icon
-// asset whenever one exists.
-function AppIcon({ styles }) {
-  return (
-    <View style={styles.icon}>
-      <Text style={styles.iconText}>T</Text>
-    </View>
-  );
-}
+// Real logo (172x96, ~1.79:1 aspect ratio, background chroma-keyed
+// transparent) — provided 2026-07-02. Sits on an explicit white oval
+// regardless of app theme, since the logo itself reads poorly directly
+// on a dark background.
+const LOGO = require('./assets/banner-logo.png');
+const LOGO_ASPECT_RATIO = 172 / 96;
+const LOGO_HEIGHT = 32;
+const PILL_PADDING_H = 14;
+const PILL_PADDING_V = 6;
+const PILL_WIDTH = LOGO_HEIGHT * LOGO_ASPECT_RATIO + PILL_PADDING_H * 2;
+const PILL_HEIGHT = LOGO_HEIGHT + PILL_PADDING_V * 2;
 
 export default function AppBanner() {
   const theme = useTheme();
@@ -50,7 +52,9 @@ export default function AppBanner() {
   return (
     <View style={styles.banner}>
       <View style={styles.row}>
-        <AppIcon styles={styles} />
+        <View style={styles.logoPill}>
+          <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+        </View>
         <Text style={styles.appName}>TeslaUSB Companion</Text>
       </View>
       <Text style={styles.piName}>
@@ -72,19 +76,18 @@ function createStyles(theme) {
       flexDirection: 'row',
       alignItems: 'center',
     },
-    icon: {
-      width: 28,
-      height: 28,
-      borderRadius: 6,
-      backgroundColor: theme.accent,
+    logoPill: {
+      width: PILL_WIDTH,
+      height: PILL_HEIGHT,
+      borderRadius: PILL_HEIGHT / 2,
+      backgroundColor: '#fff',
       alignItems: 'center',
       justifyContent: 'center',
-      marginRight: 8,
+      marginRight: 10,
     },
-    iconText: {
-      color: '#fff',
-      fontSize: 15,
-      fontWeight: '700',
+    logo: {
+      width: LOGO_HEIGHT * LOGO_ASPECT_RATIO,
+      height: LOGO_HEIGHT,
     },
     appName: {
       fontSize: 17,
@@ -95,7 +98,7 @@ function createStyles(theme) {
       fontSize: 13,
       color: theme.textMuted,
       marginTop: 2,
-      marginLeft: 36,
+      marginLeft: PILL_WIDTH + 10,
     },
   });
 }
