@@ -81,6 +81,30 @@ All notable changes to this project are documented here, following
     correctly rejected (403), real thumbnail byte-exact, and live
     video playback on the phone.
 
+### Added
+- Real BLE pairing wizard driven from the app itself (2026-07-02), not
+  a generic scanner: `react-native-ble-plx` wired into
+  `app/BlePairingScreen.js`, requiring a switch off classic Expo Go
+  onto an EAS-built development client (`eas.json` "development"
+  profile, `expo-dev-client`). Full flow verified end-to-end on
+  Android against the real Pi: scan → connect → device info read →
+  claim code → WiFi credentials → real reboot → confirmed rejoin on
+  the same network. iOS build not started yet.
+  - Android BLE runtime permissions must be requested conditionally by
+    API level — `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT` only exist on
+    Android 12+ (API 31+); requesting them on older versions can
+    silently prevent *any* permission dialog from appearing at all.
+    Pre-12 relies on the legacy `BLUETOOTH`/`BLUETOOTH_ADMIN` manifest
+    permissions, auto-granted at install with no runtime prompt.
+  - Android needs an explicit `device.requestMTU(247)` after
+    connecting — the default ~20-byte usable payload isn't enough for
+    the WiFi config JSON. iOS negotiates MTU automatically.
+  - Confirmed docs/STATE_MACHINES.md's bounded advertising window
+    (10 min) is real and matters for dev/testing: `pi-service` had
+    been running 10+ hours unclaimed and had stopped advertising
+    entirely — needed a restart to get a fresh window before the app
+    could find it at all.
+
 ### Discovered (real-hardware testing, 2026-07-01)
 
 - teslausb's actual headless WiFi reconfiguration mechanism: it does

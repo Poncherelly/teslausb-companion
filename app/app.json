@@ -1,27 +1,48 @@
 {
   "expo": {
-    "name": "app",
-    "slug": "app",
+    "name": "TeslaUSB Companion",
+    "slug": "teslausb-companion",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.poncherelly.teslausbcompanion"
     },
     "android": {
+      "package": "com.poncherelly.teslausbcompanion",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-video"
-    ]
+      "expo-video",
+      [
+        "react-native-ble-plx",
+        {
+          "bluetoothAlwaysPermission": "Allow TeslaUSB Companion to connect to your Pi over Bluetooth during setup"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e94a6b30-fb21-4717-9ed1-34538e71b47e"
+      }
+    },
+    "owner": "poncherellys-team"
   }
 }

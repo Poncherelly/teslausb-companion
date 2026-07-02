@@ -3,11 +3,14 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
+    "buffer": "^6.0.3",
     "expo": "54.0.35",
+    "expo-dev-client": "~6.0.21",
     "expo-status-bar": "~3.0.9",
     "expo-video": "~3.0.16",
     "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react-native": "0.81.5",
+    "react-native-ble-plx": "^3.5.1"
   },
   "scripts": {
     "start": "expo start",

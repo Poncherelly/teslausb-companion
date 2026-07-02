@@ -87,6 +87,15 @@ chosen to match the maintainer's existing Node.js experience rather
 than introducing a second language (e.g. Dart for Flutter) purely for
 the mobile side.
 
+**Confirmed built (2026-07-02):** the custom dev client is real, not
+just decided — `app/eas.json` "development" profile builds via EAS
+(Expo account `poncherelly`/team `poncherellys-team`, project slug
+`teslausb-companion`), and `react-native-ble-plx` is wired into
+`app/BlePairingScreen.js`. Android build verified end-to-end against
+the real Pi (see docs/BLE_PROTOCOL.md). iOS build not started —
+needs device registration for ad-hoc distribution since it's not going
+through TestFlight/App Store.
+
 ### Real-hardware constraints (confirmed 2026-07-01, see docs/OPEN_QUESTIONS.md #9-10)
 
 The maintainer's test unit is a Pi Zero W running the stock teslausb
