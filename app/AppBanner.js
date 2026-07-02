@@ -20,13 +20,31 @@ export default function AppBanner() {
   const [connected, setConnected] = useState(null); // null = still checking
 
   useEffect(() => {
-    fetch(`${PI_SERVICE_URL}/system/status`)
-      .then((res) => res.json())
-      .then((data) => {
-        setHostname(data.hostname);
-        setConnected(true);
-      })
-      .catch(() => setConnected(false));
+    let cancelled = false;
+
+    function checkStatus() {
+      fetch(`${PI_SERVICE_URL}/system/status`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (cancelled) return;
+          setHostname(data.hostname);
+          setConnected(true);
+        })
+        .catch(() => {
+          if (!cancelled) setConnected(false);
+        });
+    }
+
+    // Retries periodically instead of only checking once at mount —
+    // a one-off transient failure (e.g. pi-service mid-restart)
+    // otherwise left this stuck showing "Pi not reachable" until the
+    // whole app was closed and reopened.
+    checkStatus();
+    const interval = setInterval(checkStatus, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
   return (

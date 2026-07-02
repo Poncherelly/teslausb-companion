@@ -20,6 +20,12 @@ All notable changes to this project are documented here, following
   app banner (name + Pi hostname) at the top of every screen.
 
 ### Fixed
+- App banner only checked Pi reachability once at app launch, so a
+  one-off transient failure (e.g. `pi-service` mid-restart) left it
+  stuck showing "Pi not reachable" until the whole app was force-closed
+  and reopened. Now retries every 15 seconds instead.
+
+### Fixed
 - **Real data-loss bug, found and fixed 2026-07-02**:
   `wifi-reconfigure.js` was overwriting the *entire*
   `teslausb_setup_variables.conf` with just `SSID`/`WIFIPASS` every
