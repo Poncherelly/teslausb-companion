@@ -47,3 +47,10 @@ deletion sweep from racing an in-progress download.
 The app shows "On device" (Pi) and "Archive" tabs against the identical
 `GET /clips?source=` shape. A clip mid-transfer appears in both tabs
 with an "Archiving"/"Syncing" badge until state flips to `archived`.
+
+Within each tab, group by `category` (Recent/Saved/Sentry) rather than
+one flat chronological list — confirmed necessary after testing a flat
+list against real data (2026-07-01): Recent clips vastly outnumber
+Saved/Sentry, burying the latter at the bottom of the scroll with no
+visual separation. Category should be a section header/grouping, not
+just per-row subtext.
