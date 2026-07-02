@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Image, Modal, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import BlePairingScreen from './BlePairingScreen';
 
 // Hardcoded for this first vertical-slice test. Once BLE pairing exists,
 // the app will learn the Pi's address during setup instead.
@@ -87,6 +88,7 @@ export default function App() {
   const [clips, setClips] = useState([]);
   const [error, setError] = useState(null);
   const [playingClip, setPlayingClip] = useState(null);
+  const [pairingVisible, setPairingVisible] = useState(false);
 
   useEffect(() => {
     if (tab !== 'device') return;
@@ -117,6 +119,9 @@ export default function App() {
             Archive
           </Text>
         </Pressable>
+        <Pressable style={styles.setupButton} onPress={() => setPairingVisible(true)}>
+          <Text style={styles.setupButtonText}>+ Device</Text>
+        </Pressable>
       </View>
 
       {error && <Text style={styles.error}>Error: {error}</Text>}
@@ -140,6 +145,7 @@ export default function App() {
       )}
 
       <VideoPlayerModal clip={playingClip} onClose={() => setPlayingClip(null)} />
+      <BlePairingScreen visible={pairingVisible} onClose={() => setPairingVisible(false)} />
     </View>
   );
 }
@@ -172,6 +178,14 @@ const styles = StyleSheet.create({
   tabLabelActive: {
     color: '#111',
     fontWeight: '600',
+  },
+  setupButton: {
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  setupButtonText: {
+    fontSize: 14,
+    color: '#0066cc',
   },
   error: {
     color: 'red',
