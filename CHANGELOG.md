@@ -13,7 +13,31 @@ All notable changes to this project are documented here, following
   applied across all screens. No manual toggle — follows the phone's
   system setting per the user's explicit preference.
 
+### Added
+- `PUT /system/hostname` — renames the Pi (updates `/etc/hostname` +
+  `/etc/hosts`, reboots to apply, same pattern as WiFi reconfiguration).
+  `GET /system/status` now also returns the hostname, shown in a new
+  app banner (name + Pi hostname) at the top of every screen.
+
 ### Fixed
+- **Real data-loss bug, found and fixed 2026-07-02**:
+  `wifi-reconfigure.js` was overwriting the *entire*
+  `teslausb_setup_variables.conf` with just `SSID`/`WIFIPASS` every
+  time BLE WiFi reconfiguration ran. Since this file is the *only*
+  persisted copy of the full setup config once initial setup has
+  completed, repeated WiFi-reconfiguration testing silently deleted a
+  real, working archive destination (`ARCHIVE_SYSTEM`/`ARCHIVE_SERVER`
+  for the user's actual NAS), leaving `archiveloop` stuck waiting on
+  `localhost` instead of the real server for about a day before being
+  caught. Root cause understood via `archiveloop`'s own fallback logic
+  (`ARCHIVE_SYSTEM` unset → defaults to `"none"` → `ARCHIVE_SERVER=
+  localhost`). Fixed by reading and merging with the existing
+  persisted config instead of overwriting it — verified the merge
+  logic directly, and confirmed on the real Pi that archive-sync
+  resumed working correctly (full cycle: mount, check for new clips,
+  sync music, unmount, 0 errors). Same lesson applies to `PUT
+  /system/hostname` and any future setup-time config write — merge,
+  never blindly overwrite this file.
 - BLE reconnect reliability: connections now retry a few times before
   giving up (BLE is flaky, especially right after the app was
   force-closed rather than backgrounded), and the pairing screen now
