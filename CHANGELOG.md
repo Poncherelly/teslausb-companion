@@ -59,6 +59,28 @@ All notable changes to this project are documented here, following
   Verified against real data on the Pi (65 real clips: 61 recent, 4
   sentry, 0 saved) and viewed live on a phone via Expo Go.
 
+### Added
+- Real download/delete/thumbnail for clips, plus tap-to-play video
+  streaming in the app:
+  - `GET /clips/{id}/download` streams the representative camera file
+    with HTTP Range support (Express's `sendFile`), tracked by an
+    in-use lock (`pi-service/src/lib/download-locks.js`) that's
+    reflected live in `locked_by_download` on the listing endpoint.
+  - `DELETE /clips/{id}` enforces the archived-only guardrail from
+    docs/STATE_MACHINES.md — correctly rejects every clip right now,
+    since no archive-sync process exists yet to mark anything
+    `archived`. That's the intended safety behavior, not a bug.
+  - `GET /clips/{id}/thumbnail` serves the real `thumb.png` for
+    Saved/Sentry events (none exists for Recent clips).
+  - App: thumbnails in the clip list, and tapping a clip opens a
+    full-screen player (`expo-video`) that streams directly from the
+    download endpoint's Range support — no separate streaming
+    endpoint needed.
+  - Verified end-to-end on real hardware: full real-file download
+    (byte-exact), lock true during transfer/false after, delete
+    correctly rejected (403), real thumbnail byte-exact, and live
+    video playback on the phone.
+
 ### Discovered (real-hardware testing, 2026-07-01)
 
 - teslausb's actual headless WiFi reconfiguration mechanism: it does
