@@ -29,13 +29,19 @@ security model in STATE_MACHINES.md.
   `state=archived`; share one internal function with the deletion sweep
   so there is exactly one code path allowed to delete
 - `GET /clips/{id}/thumbnail`
-- `GET /music?path=<relative path>` — **folder browser, not a flat
-  list** (revised 2026-07-02 after real data showed the music
-  partition is a generic user-organized folder tree — `Music/<artist>/
-  <album>`, `boombox/`, plus arbitrary other top-level folders like
-  "Comedy" or "kids music" — not a fixed two-category shape). Returns
-  `{path, entries: [{name, type: "folder"|"file", size?}]}` for the
-  requested directory. Implemented in `pi-service/src/lib/music-scan.js`.
+- `GET /music?source=pi|archive&path=<relative path>` — **folder
+  browser, not a flat list** (revised 2026-07-02 after real data showed
+  the music partition is a generic user-organized folder tree —
+  `Music/<artist>/<album>`, `boombox/`, plus arbitrary other top-level
+  folders like "Comedy" or "kids music" — not a fixed two-category
+  shape). Returns `{path, entries: [{name, type: "folder"|"file",
+  size?}]}` for the requested directory. `source` added same day as
+  `GET /clips?source=` — `archive` requires a music share to have been
+  configured in Archive settings (`musicShareName`); if none was
+  configured, the mount attempt fails and the error message says so
+  explicitly rather than a generic 500. Implemented in
+  `pi-service/src/lib/music-scan.js` (source-agnostic folder browser)
+  and `src/lib/archive-mount.js` (`ensureArchiveMusicMounted`).
   `DELETE /music/{id}`, `PUT /settings/music` not implemented yet.
 - `GET /archive/config`, `PUT /archive/config` — **revised 2026-07-02,
   scoped down from the original multi-destination
