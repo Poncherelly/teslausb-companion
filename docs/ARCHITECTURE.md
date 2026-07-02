@@ -54,3 +54,11 @@ list against real data (2026-07-01): Recent clips vastly outnumber
 Saved/Sentry, burying the latter at the bottom of the scroll with no
 visual separation. Category should be a section header/grouping, not
 just per-row subtext.
+
+## Music tab (added 2026-07-02)
+
+A third top-level tab alongside "On device"/"Archive" — a folder
+browser (`app/MusicBrowser.js`), not a flat list, since the music
+partition is a generic user-organized folder tree, not a fixed
+Music/Boombox split. See docs/DATA_MODEL.md's `MusicEntry` real-data
+note and docs/API.md's `GET /music?path=`.

@@ -36,7 +36,8 @@
         {
           "bluetoothAlwaysPermission": "Allow TeslaUSB Companion to connect to your Pi over Bluetooth during setup"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {

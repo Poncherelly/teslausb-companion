@@ -7,15 +7,13 @@
 // See pi-service/README.md.
 
 import bleno from "@abandonware/bleno";
-import { generateClaimCode } from "./claim-code.js";
 import { getDeviceInfo } from "./device-info.js";
-import { setAdminPassword } from "./device-config-store.js";
+import { hasAdminPassword, setAdminPassword, verifyAdminPassword } from "./device-config-store.js";
 import { reconfigureWifi } from "./wifi-reconfigure.js";
 
 const SERVICE_UUID = "e5eab36e5fca456d94194db713b627ea";
 const CHAR_UUIDS = {
   deviceInfo: "e5eab36e5fca456d94194db713b627eb",
-  claimCode: "e5eab36e5fca456d94194db713b627ec",
   wifiConfig: "e5eab36e5fca456d94194db713b627ed",
   adminPassword: "e5eab36e5fca456d94194db713b627ee",
   status: "e5eab36e5fca456d94194db713b627ef",
@@ -23,12 +21,11 @@ const CHAR_UUIDS = {
 
 const PAIRING_WINDOW_MS = 10 * 60 * 1000;
 
-// Per-session state — the claim code must be re-supplied by each new
+// Per-connection state — claiming must be re-established by each new
 // connection (docs/BLE_PROTOCOL.md: "independent of BLE link-layer
 // pairing"), so this resets on disconnect, not just at process start.
 let claimed = false;
 let status = "idle";
-let expectedClaimCode = generateClaimCode();
 let statusNotifyCallback = null;
 
 function setStatus(next) {
@@ -47,19 +44,6 @@ const deviceInfoCharacteristic = new bleno.Characteristic({
       .catch(() => {
         callback(bleno.Characteristic.RESULT_UNLIKELY_ERROR);
       });
-  },
-});
-
-const claimCodeCharacteristic = new bleno.Characteristic({
-  uuid: CHAR_UUIDS.claimCode,
-  properties: ["write"],
-  onWriteRequest: (data, offset, withoutResponse, callback) => {
-    if (data.toString().trim() === expectedClaimCode) {
-      claimed = true;
-      callback(bleno.Characteristic.RESULT_SUCCESS);
-    } else {
-      callback(bleno.Characteristic.RESULT_UNLIKELY_ERROR);
-    }
   },
 });
 
@@ -99,16 +83,29 @@ const wifiConfigCharacteristic = new bleno.Characteristic({
   },
 });
 
+// Doubles as the claim mechanism (docs/BLE_PROTOCOL.md "Claiming via
+// admin password"): on a fresh device with no password set yet, this
+// write both sets the password and claims the device. On a device
+// that already has one, the write must match it to claim. This
+// intentionally means whoever sets the first password during the
+// initial pairing window wins the device — losing that race means
+// restarting the pairing process, not a security bypass.
 const adminPasswordCharacteristic = new bleno.Characteristic({
   uuid: CHAR_UUIDS.adminPassword,
   properties: ["write"],
   onWriteRequest: (data, offset, withoutResponse, callback) => {
-    if (!claimed) {
-      callback(bleno.Characteristic.RESULT_UNLIKELY_ERROR);
-      return;
-    }
-    setAdminPassword(data.toString())
-      .then(() => callback(bleno.Characteristic.RESULT_SUCCESS))
+    const password = data.toString();
+    hasAdminPassword()
+      .then((exists) => {
+        if (!exists) {
+          return setAdminPassword(password).then(() => true);
+        }
+        return verifyAdminPassword(password);
+      })
+      .then((success) => {
+        if (success) claimed = true;
+        callback(success ? bleno.Characteristic.RESULT_SUCCESS : bleno.Characteristic.RESULT_UNLIKELY_ERROR);
+      })
       .catch(() => callback(bleno.Characteristic.RESULT_UNLIKELY_ERROR));
   },
 });
@@ -131,7 +128,6 @@ const provisioningService = new bleno.PrimaryService({
   uuid: SERVICE_UUID,
   characteristics: [
     deviceInfoCharacteristic,
-    claimCodeCharacteristic,
     wifiConfigCharacteristic,
     adminPasswordCharacteristic,
     statusCharacteristic,
@@ -143,8 +139,6 @@ export function startBlePeripheral() {
 
   bleno.on("stateChange", (state) => {
     if (state === "poweredOn") {
-      expectedClaimCode = generateClaimCode();
-      console.log(`BLE claim code: ${expectedClaimCode}`);
       bleno.startAdvertising("TeslaUSB", [SERVICE_UUID]);
     } else {
       bleno.stopAdvertising();

@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { setupRouter } from "./routes/setup.js";
 import { clipsRouter } from "./routes/clips.js";
+import { musicRouter } from "./routes/music.js";
 
 const app = express();
 app.use(cors());
@@ -13,6 +14,7 @@ app.get("/system/status", (req, res) => {
 
 app.use("/setup", setupRouter);
 app.use("/clips", clipsRouter);
+app.use("/music", musicRouter);
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {

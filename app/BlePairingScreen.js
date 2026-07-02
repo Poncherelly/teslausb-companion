@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Modal,
   PermissionsAndroid,
   Platform,
@@ -12,16 +13,19 @@ import {
 } from 'react-native';
 import { BleManager } from 'react-native-ble-plx';
 import { Buffer } from 'buffer';
+import * as SecureStore from 'expo-secure-store';
+import { PI_SERVICE_URL } from './config';
 
 // Must match pi-service/src/ble/peripheral.js exactly.
 const SERVICE_UUID = 'e5eab36e-5fca-456d-9419-4db713b627ea';
 const CHAR_UUIDS = {
   deviceInfo: 'e5eab36e-5fca-456d-9419-4db713b627eb',
-  claimCode: 'e5eab36e-5fca-456d-9419-4db713b627ec',
   wifiConfig: 'e5eab36e-5fca-456d-9419-4db713b627ed',
   adminPassword: 'e5eab36e-5fca-456d-9419-4db713b627ee',
   status: 'e5eab36e-5fca-456d-9419-4db713b627ef',
 };
+
+const ADMIN_PASSWORD_STORE_KEY = 'teslausb-admin-password';
 
 function encode(str) {
   return Buffer.from(str, 'utf8').toString('base64');
@@ -54,11 +58,11 @@ async function requestAndroidBlePermissions() {
 export default function BlePairingScreen({ visible, onClose }) {
   const managerRef = useRef(null);
   const deviceRef = useRef(null);
-  const [step, setStep] = useState('scanning'); // scanning | found | claiming | claimed | wifi | done | error
+  const [step, setStep] = useState('scanning'); // scanning | found | claiming | claimed | wifi-sending | done | error
   const [deviceInfo, setDeviceInfo] = useState(null);
-  const [claimCodeInput, setClaimCodeInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
   const [ssid, setSsid] = useState('');
-  const [password, setPassword] = useState('');
+  const [wifiPassword, setWifiPassword] = useState('');
   const [statusText, setStatusText] = useState('idle');
   const [errorText, setErrorText] = useState(null);
 
@@ -101,7 +105,15 @@ export default function BlePairingScreen({ visible, onClose }) {
             SERVICE_UUID,
             CHAR_UUIDS.deviceInfo
           );
-          setDeviceInfo(JSON.parse(decode(infoChar.value)));
+          const info = JSON.parse(decode(infoChar.value));
+          setDeviceInfo(info);
+
+          // Pre-fill (not auto-submit) so the user can still see/edit
+          // it — one tap to confirm instead of retyping from scratch.
+          if (info.has_admin_password) {
+            const saved = await SecureStore.getItemAsync(ADMIN_PASSWORD_STORE_KEY);
+            if (saved && !cancelled) setPasswordInput(saved);
+          }
 
           connected.monitorCharacteristicForService(
             SERVICE_UUID,
@@ -128,19 +140,51 @@ export default function BlePairingScreen({ visible, onClose }) {
     };
   }, [visible]);
 
-  async function submitClaimCode() {
+  // The Pi reboots to apply new WiFi config, so there's no live BLE
+  // notification possible once it's applied (see
+  // docs/OPEN_QUESTIONS.md #12) — poll the REST API instead so the
+  // user gets a real "it's back" confirmation rather than a guess.
+  useEffect(() => {
+    if (step !== 'done') return;
+    const interval = setInterval(() => {
+      fetch(`${PI_SERVICE_URL}/system/status`)
+        .then((res) => {
+          if (res.ok) {
+            clearInterval(interval);
+            setStep('connected');
+          }
+        })
+        .catch(() => {
+          // Still down/rebooting — keep polling.
+        });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [step]);
+
+  // Doubles as claiming the device — see pi-service/src/ble/peripheral.js
+  // and docs/BLE_PROTOCOL.md "Claiming via admin password". On a fresh
+  // device this sets the password; on an already-set-up device it must
+  // match the existing one.
+  async function submitPassword() {
     setStep('claiming');
     setErrorText(null);
     try {
       await deviceRef.current.writeCharacteristicWithResponseForService(
         SERVICE_UUID,
-        CHAR_UUIDS.claimCode,
-        encode(claimCodeInput.trim())
+        CHAR_UUIDS.adminPassword,
+        encode(passwordInput)
       );
-      setStep('claimed');
+      await SecureStore.setItemAsync(ADMIN_PASSWORD_STORE_KEY, passwordInput);
+      // Skip re-sending WiFi credentials (and triggering an
+      // unnecessary reboot) on a device that's already connected.
+      setStep(deviceInfo?.wifi_connected ? 'already-connected' : 'wifi');
     } catch (err) {
       setStep('found');
-      setErrorText('Claim code rejected — check the code shown on the Pi and try again.');
+      setErrorText(
+        deviceInfo?.has_admin_password
+          ? 'Incorrect password — try again.'
+          : 'Failed to set password — try again.'
+      );
     }
   }
 
@@ -151,14 +195,14 @@ export default function BlePairingScreen({ visible, onClose }) {
       await deviceRef.current.writeCharacteristicWithResponseForService(
         SERVICE_UUID,
         CHAR_UUIDS.wifiConfig,
-        encode(JSON.stringify({ ssid, password }))
+        encode(JSON.stringify({ ssid, password: wifiPassword }))
       );
       // The Pi reboots to apply this — see pi-service/src/ble/wifi-reconfigure.js
       // and docs/OPEN_QUESTIONS.md #12 (no live "connected" notification is
       // possible from the pre-reboot process).
       setStep('done');
     } catch (err) {
-      setStep('claimed');
+      setStep('wifi');
       setErrorText('Failed to send WiFi config: ' + err.message);
     }
   }
@@ -172,48 +216,56 @@ export default function BlePairingScreen({ visible, onClose }) {
 
         <Text style={styles.title}>Set up new device</Text>
 
-        {step === 'scanning' && <Text style={styles.body}>Scanning for a TeslaUSB device nearby…</Text>}
-
-        {step === 'error' && (
-          <>
-            <Text style={styles.error}>{errorText}</Text>
-          </>
+        {step === 'scanning' && (
+          <View style={styles.centeredRow}>
+            <ActivityIndicator style={styles.spinner} />
+            <Text style={styles.body}>Scanning for a TeslaUSB device nearby…</Text>
+          </View>
         )}
+
+        {step === 'error' && <Text style={styles.error}>{errorText}</Text>}
 
         {(step === 'found' || step === 'claiming') && (
           <>
             <Text style={styles.body}>
               Found device (serial ...{deviceInfo?.serial_last4}, firmware{' '}
               {deviceInfo?.fw_version}).{'\n\n'}
-              Enter the claim code shown on the Pi:
+              {deviceInfo?.has_admin_password
+                ? 'Enter this device’s admin password:'
+                : 'This device has no password yet — set one now:'}
             </Text>
             <TextInput
               style={styles.input}
-              value={claimCodeInput}
-              onChangeText={setClaimCodeInput}
-              placeholder="000000"
-              keyboardType="number-pad"
-              maxLength={6}
+              value={passwordInput}
+              onChangeText={setPasswordInput}
+              placeholder="Password"
+              secureTextEntry
             />
             {errorText && <Text style={styles.error}>{errorText}</Text>}
             <Pressable
               style={styles.button}
-              onPress={submitClaimCode}
-              disabled={step === 'claiming' || claimCodeInput.length !== 6}
+              onPress={submitPassword}
+              disabled={step === 'claiming' || !passwordInput}
             >
-              <Text style={styles.buttonText}>{step === 'claiming' ? 'Checking…' : 'Claim device'}</Text>
+              {step === 'claiming' ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>
+                  {deviceInfo?.has_admin_password ? 'Unlock' : 'Set password'}
+                </Text>
+              )}
             </Pressable>
           </>
         )}
 
-        {(step === 'claimed' || step === 'wifi-sending') && (
+        {(step === 'wifi' || step === 'wifi-sending') && (
           <>
             <Text style={styles.body}>Device claimed. Enter your home WiFi details:</Text>
             <TextInput style={styles.input} value={ssid} onChangeText={setSsid} placeholder="WiFi network name" />
             <TextInput
               style={styles.input}
-              value={password}
-              onChangeText={setPassword}
+              value={wifiPassword}
+              onChangeText={setWifiPassword}
               placeholder="WiFi password"
               secureTextEntry
             />
@@ -221,20 +273,35 @@ export default function BlePairingScreen({ visible, onClose }) {
             <Pressable
               style={styles.button}
               onPress={submitWifi}
-              disabled={step === 'wifi-sending' || !ssid || !password}
+              disabled={step === 'wifi-sending' || !ssid || !wifiPassword}
             >
-              <Text style={styles.buttonText}>
-                {step === 'wifi-sending' ? 'Sending…' : 'Connect to WiFi'}
-              </Text>
+              {step === 'wifi-sending' ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Connect to WiFi</Text>
+              )}
             </Pressable>
           </>
         )}
 
         {step === 'done' && (
+          <View style={styles.centeredRow}>
+            <ActivityIndicator style={styles.spinner} />
+            <Text style={styles.body}>
+              WiFi details sent — the Pi is rebooting to apply them and rejoin
+              your network. This can take a minute or two; checking automatically…
+            </Text>
+          </View>
+        )}
+
+        {step === 'connected' && (
+          <Text style={styles.body}>✅ Connected! Close this screen and use the app as normal.</Text>
+        )}
+
+        {step === 'already-connected' && (
           <Text style={styles.body}>
-            WiFi details sent — the Pi is rebooting to apply them. This can take a
-            minute or two; once it rejoins your network, close this screen and use
-            the app as normal.
+            ✅ This device is already connected to WiFi — no need to reconfigure
+            it. Close this screen and use the app as normal.
           </Text>
         )}
 
@@ -271,6 +338,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 16,
+    flexShrink: 1,
+  },
+  centeredRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  spinner: {
+    marginRight: 12,
+    marginTop: 2,
   },
   input: {
     borderWidth: 1,

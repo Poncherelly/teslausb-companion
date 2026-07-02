@@ -48,6 +48,18 @@ revisitable setting, not a one-time wizard choice — see ARCHIVE_AND_TESLA.md n
 - `mode`: `sync` | `overwrite` | `ignore`
 - `source_path`
 
+## MusicEntry (added 2026-07-02, real-data-driven)
+
+Not originally speced — added after mounting the real music partition
+showed it's a generic, user-organized folder tree (`Music/<artist>/
+<album>`, `boombox/`, plus arbitrary other top-level folders), not a
+flat list. `GET /music?path=` (see API.md) returns these for one
+directory at a time:
+
+- `name`
+- `type`: `folder` | `file`
+- `size` — files only
+
 ## TeslaAuth (Tier 2 only)
 
 - `refresh_token` — encrypted at rest, long-lived

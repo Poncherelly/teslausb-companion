@@ -105,6 +105,42 @@ All notable changes to this project are documented here, following
     entirely — needed a restart to get a fresh window before the app
     could find it at all.
 
+### Added
+- Music/Boombox folder browser: real data (2026-07-02) showed the
+  music partition (`music_disk.bin`) is a generic user-organized
+  folder tree (`Music/<artist>/<album>`, `boombox/`, plus arbitrary
+  other top-level folders like "Comedy"/"kids music"), not a fixed
+  two-category split — so it's a folder browser (`GET /music?path=`,
+  `pi-service/src/lib/music-{mount,scan}.js`, `app/MusicBrowser.js`,
+  third "Music" tab), not a flat list. Verified against real data on
+  the Pi.
+
+### Changed
+- **Redesigned the BLE claim mechanism**: dropped the separate random
+  "claim code" characteristic entirely — it had no real channel to
+  reach a non-technical user on a headless Pi (SSH-only isn't
+  workable). The admin password characteristic now doubles as the
+  claim mechanism: first-ever pairing sets it, re-pairing must match
+  it. Documented, accepted tradeoff: first-claim is a race (whoever
+  sets the password first wins); losing it just means restarting the
+  pairing window, not a security bypass. See docs/BLE_PROTOCOL.md
+  "Claiming via admin password".
+- Pairing screen UX pass, driven by real usage friction:
+  - Added spinners for scanning/claiming/WiFi-sending instead of bare
+    text, so it doesn't look frozen.
+  - The post-WiFi-reboot wait now actively polls `GET /system/status`
+    every few seconds and shows a real "Connected!" confirmation
+    instead of "wait a bit then close manually" — resolves the
+    previously-open docs/OPEN_QUESTIONS.md #12 gap.
+  - `device-info` gained a `wifi_connected` field so the wizard skips
+    re-sending WiFi credentials (and triggering an unnecessary reboot)
+    on an already-connected device — found this was a real problem,
+    not theoretical: re-opening the pairing screen on an
+    already-configured device previously forced WiFi re-entry (and a
+    real reboot) every single time.
+  - The app now pre-fills the password field from `expo-secure-store`
+    on a recognized device, rather than saving it and never using it.
+
 ### Discovered (real-hardware testing, 2026-07-01)
 
 - teslausb's actual headless WiFi reconfiguration mechanism: it does

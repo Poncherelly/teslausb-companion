@@ -3,10 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { Image, Modal, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import BlePairingScreen from './BlePairingScreen';
-
-// Hardcoded for this first vertical-slice test. Once BLE pairing exists,
-// the app will learn the Pi's address during setup instead.
-const PI_SERVICE_URL = 'http://192.168.50.103:3000';
+import MusicBrowser from './MusicBrowser';
+import { PI_SERVICE_URL } from './config';
 
 // Order/labels match Tesla's own in-car dashcam tab convention.
 // See docs/ARCHITECTURE.md "Two-tab clip browser".
@@ -119,6 +117,14 @@ export default function App() {
             Archive
           </Text>
         </Pressable>
+        <Pressable
+          style={[styles.tab, tab === 'music' && styles.tabActive]}
+          onPress={() => setTab('music')}
+        >
+          <Text style={[styles.tabLabel, tab === 'music' && styles.tabLabelActive]}>
+            Music
+          </Text>
+        </Pressable>
         <Pressable style={styles.setupButton} onPress={() => setPairingVisible(true)}>
           <Text style={styles.setupButtonText}>+ Device</Text>
         </Pressable>
@@ -126,7 +132,7 @@ export default function App() {
 
       {error && <Text style={styles.error}>Error: {error}</Text>}
 
-      {tab === 'device' ? (
+      {tab === 'device' && (
         <SectionList
           style={styles.list}
           sections={groupIntoSections(clips)}
@@ -135,7 +141,8 @@ export default function App() {
           renderSectionHeader={SectionHeader}
           stickySectionHeadersEnabled
         />
-      ) : (
+      )}
+      {tab === 'archive' && (
         <View style={styles.placeholder}>
           <Text style={styles.placeholderText}>
             Archive browsing isn't implemented yet — no archive-sync
@@ -143,6 +150,7 @@ export default function App() {
           </Text>
         </View>
       )}
+      {tab === 'music' && <MusicBrowser />}
 
       <VideoPlayerModal clip={playingClip} onClose={() => setPlayingClip(null)} />
       <BlePairingScreen visible={pairingVisible} onClose={() => setPairingVisible(false)} />
