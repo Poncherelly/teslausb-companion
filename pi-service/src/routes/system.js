@@ -29,3 +29,22 @@ systemRouter.put("/hostname", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Re-opens the BLE pairing window (docs/API.md) — added 2026-07-03.
+// Was only ever speced before; the only way to get a fresh window once
+// one closed was a full `systemctl restart pi-service`. Dynamic import
+// because ble/peripheral.js pulls in @abandonware/bleno at module top
+// level, which isn't installed outside Linux (see index.js's own
+// conditional import of this same module).
+systemRouter.post("/pairing-mode", async (req, res) => {
+  if (process.platform !== "linux") {
+    return res.status(501).json({ error: "not available outside the Pi" });
+  }
+  try {
+    const { enablePairingMode } = await import("../ble/peripheral.js");
+    await enablePairingMode();
+    res.status(202).json({ message: "pairing mode enabled" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});

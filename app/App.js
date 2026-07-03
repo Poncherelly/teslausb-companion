@@ -237,6 +237,16 @@ export default function App() {
     setClips((prev) => prev.filter((c) => c.id !== id));
   }
 
+  // Best-effort: re-opens the BLE pairing window (POST /system/
+  // pairing-mode, added 2026-07-03) in case it already closed since an
+  // earlier setup. Fails silently and just opens the scan screen
+  // anyway for a truly fresh Pi, which has no WiFi/REST reachable yet
+  // and relies on its own boot-time advertising window instead.
+  function handleSetupDevice() {
+    fetch(`${PI_SERVICE_URL}/system/pairing-mode`, { method: 'POST' }).catch(() => {});
+    setPairingVisible(true);
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar style="auto" />
@@ -302,7 +312,7 @@ export default function App() {
       )}
       {tab === 'archive' && <ArchiveBrowser onPlay={setPlayingClip} />}
       {tab === 'music' && <MusicBrowser />}
-      {tab === 'settings' && <SettingsScreen onSetupDevice={() => setPairingVisible(true)} />}
+      {tab === 'settings' && <SettingsScreen onSetupDevice={handleSetupDevice} />}
 
       <VideoPlayerModal
         clip={playingClip}

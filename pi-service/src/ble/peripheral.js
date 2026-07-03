@@ -134,13 +134,57 @@ const provisioningService = new bleno.PrimaryService({
   ],
 });
 
+let requestPairingMode = null;
+
+// Re-opens the bounded advertising window on demand — added 2026-07-03
+// after finding `POST /system/pairing-mode` was speced in docs/API.md
+// but never actually built, leaving a full `systemctl restart
+// pi-service` (resetting the whole process) as the only way to get a
+// fresh window once one closed. Resolves once advertising is confirmed
+// active (or already was); rejects if BLE isn't powered on.
+export function enablePairingMode() {
+  if (!requestPairingMode) {
+    return Promise.reject(new Error("BLE peripheral not started"));
+  }
+  return requestPairingMode();
+}
+
 export function startBlePeripheral() {
   let pairingWindowTimer = null;
+  let isAdvertising = false;
+  let poweredOn = false;
+
+  function openPairingWindow() {
+    clearTimeout(pairingWindowTimer);
+    pairingWindowTimer = setTimeout(() => {
+      if (!claimed) {
+        isAdvertising = false;
+        bleno.stopAdvertising();
+      }
+    }, PAIRING_WINDOW_MS);
+  }
+
+  requestPairingMode = () => {
+    if (!poweredOn) {
+      return Promise.reject(new Error("Bluetooth adapter is not ready"));
+    }
+    if (isAdvertising) {
+      // Already advertising (e.g. mid-window) — just extend it rather
+      // than restarting, which bleno doesn't cleanly support while
+      // already active.
+      openPairingWindow();
+      return Promise.resolve();
+    }
+    bleno.startAdvertising("TeslaUSB", [SERVICE_UUID]);
+    return Promise.resolve();
+  };
 
   bleno.on("stateChange", (state) => {
-    if (state === "poweredOn") {
+    poweredOn = state === "poweredOn";
+    if (poweredOn) {
       bleno.startAdvertising("TeslaUSB", [SERVICE_UUID]);
     } else {
+      isAdvertising = false;
       bleno.stopAdvertising();
     }
   });
@@ -150,14 +194,12 @@ export function startBlePeripheral() {
       console.error("BLE advertising failed to start", error);
       return;
     }
+    isAdvertising = true;
     bleno.setServices([provisioningService]);
 
     // Bounded advertising window (docs/STATE_MACHINES.md) — stop
     // advertising if nobody claims the device in time.
-    clearTimeout(pairingWindowTimer);
-    pairingWindowTimer = setTimeout(() => {
-      if (!claimed) bleno.stopAdvertising();
-    }, PAIRING_WINDOW_MS);
+    openPairingWindow();
   });
 
   bleno.on("accept", () => {
