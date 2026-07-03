@@ -1,0 +1,108 @@
+name: Build baseline teslausb Pi image
+
+# Milestone A of the pi-gen distribution work (see project plan/CHANGELOG):
+# builds teslausb's own existing image, unmodified, via its real upstream
+# pi-gen integration — no stage_companion yet. This validates the CI
+# mechanics (disk space, privileged Docker, ARM emulation, artifact/release
+# handling) in isolation before our own script risk gets added on top.
+#
+# Manual trigger only, deliberately — this is a first, unproven attempt;
+# don't burn CI time or create noise on every push until it's reliable.
+on:
+  workflow_dispatch: {}
+
+# Both external repos are pinned to specific commits rather than floating
+# branches: teslausb itself pins no pi-gen version, and there's no
+# regression history yet to fall back on for a first build. Bump these
+# deliberately (re-verifying prepare.sh's assumptions still hold), not
+# accidentally.
+env:
+  PI_GEN_REF: 314262cb286b8f33327a6f0cbabe14c625021ca0
+  TESLAUSB_REF: fb4ed15b46dc41a2ec7c8a7a2fe0783ce1d2ffd9
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    permissions:
+      contents: write # needed to create the draft release
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      # Load-bearing, not optional: standard runners start with ~14GB
+      # free, and pi-gen's own docs describe needing "tens of gigabytes"
+      # for WORK_DIR across even a short STAGE_LIST.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          tool-cache: true
+          swap-storage: false
+
+      - name: Checkout pi-gen
+        uses: actions/checkout@v4
+        with:
+          repository: RPi-Distro/pi-gen
+          ref: ${{ env.PI_GEN_REF }}
+          path: pi-gen
+
+      - name: Checkout teslausb
+        uses: actions/checkout@v4
+        with:
+          repository: marcone/teslausb
+          ref: ${{ env.TESLAUSB_REF }}
+          path: teslausb
+
+      # prepare.sh checks that `readlink -f .` ends in /pi-gen, so it
+      # must be run from inside that checkout, not just given a path to it.
+      - name: Prepare pi-gen with teslausb's stage
+        working-directory: pi-gen
+        run: ../teslausb/pi-gen-sources/prepare.sh
+
+      # Recommended path per teslausb's own build docs. pi-gen's own
+      # Dockerfile already bundles qemu-user-static/binfmt-support, so no
+      # separate ARM-emulation setup step is needed.
+      - name: Build image
+        working-directory: pi-gen
+        run: sudo ./build-docker.sh
+
+      - name: Locate built image
+        id: locate
+        working-directory: pi-gen/deploy
+        run: |
+          image_path=$(ls -1 | head -n 1)
+          if [ -z "$image_path" ]; then
+            echo "No deploy artifact found" >&2
+            exit 1
+          fi
+          echo "image_path=pi-gen/deploy/$image_path" >> "$GITHUB_OUTPUT"
+          echo "image_name=$image_path" >> "$GITHUB_OUTPUT"
+
+      # Cheap insurance so a failed release-publish step below doesn't
+      # lose the build output — this always runs regardless of what
+      # happens next.
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: teslausb-baseline-image
+          path: ${{ steps.locate.outputs.image_path }}
+          retention-days: 14
+
+      # Draft, not just prerelease: this build is unverified against real
+      # hardware until Milestone C. A draft is invisible to normal repo
+      # visitors until a maintainer deliberately publishes it.
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="baseline-image-${{ github.run_number }}"
+          gh release create "$tag" \
+            "pi-gen/deploy/${{ steps.locate.outputs.image_name }}" \
+            --draft \
+            --title "Baseline teslausb image (run ${{ github.run_number }})" \
+            --notes "Unmodified teslausb image built via CI (Milestone A of the pi-gen distribution work). No teslausb-companion pi-service included yet. Not verified on real hardware — do not publish or flash until Milestone C confirms it."
