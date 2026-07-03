@@ -1,0 +1,16 @@
+[Unit]
+Description=TeslaUSB Companion pi-service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/pi/pi-service
+Environment=PATH=/home/pi/node/bin:/usr/bin:/bin
+ExecStart=/home/pi/node/bin/node /home/pi/pi-service/src/index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
