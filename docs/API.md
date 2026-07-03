@@ -119,4 +119,9 @@ security model in STATE_MACHINES.md.
   `archiving`/`idle`/`error`/`unreachable`/`syncing_music`/`waiting`/
   `waiting_idle`/`info`. BLE state changes and Tesla wake status are
   not wired into it — those were aspirational at spec time and remain
-  unbuilt (Tier 2 doesn't exist at all yet).
+  unbuilt (Tier 2 doesn't exist at all yet). Consumed by
+  `app/AppBanner.js` (`app/events.js`'s `subscribeToEvents`, an XHR-based
+  SSE client — React Native's `fetch` doesn't support incrementally
+  reading a streaming response body, so this uses the classic
+  `onprogress`-diffing pattern instead of a new dependency) to show live
+  status like "Archiving clips…" under the hostname.
