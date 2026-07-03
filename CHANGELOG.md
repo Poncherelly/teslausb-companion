@@ -5,6 +5,16 @@ All notable changes to this project are documented here, following
 
 ## [Unreleased]
 
+### Added
+- **`POST /system/pairing-mode` built for real** — was only speced
+  before; the only way to re-open a closed 10-minute BLE pairing
+  window used to be a full `systemctl restart pi-service`.
+  `peripheral.js`'s `enablePairingMode` re-opens or extends the window.
+  App calls this best-effort whenever "Set up new device" is tapped,
+  failing silently for a truly fresh Pi with no WiFi/REST reachable yet
+  (relies on its own boot-time window instead). Found this gap while
+  re-testing BLE pairing on iOS after the window had already closed.
+
 ### Fixed
 - **First real iOS BLE bug**: pairing failed immediately with
   "BluetoothLE is in unknown state" on a real iPhone (the first time

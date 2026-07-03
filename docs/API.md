@@ -110,8 +110,15 @@ security model in STATE_MACHINES.md.
 - `GET /system/status` — hostname, version (storage used/free, queue
   depth, BLE state, Tesla token health still TODO)
 - `PUT /system/hostname` — rename the Pi, reboots to apply
-- `POST /system/pairing-mode` — explicit re-enable trigger, physical
-  button or authenticated web UI action only
+- `POST /system/pairing-mode` — built for real 2026-07-03 (was only
+  speced before — the sole way to re-open a closed BLE pairing window
+  used to be a full `systemctl restart pi-service`). Re-opens or
+  extends the 10-minute advertising window
+  (`pi-service/src/ble/peripheral.js`'s `enablePairingMode`). App calls
+  this best-effort whenever "Set up new device" is tapped
+  (`app/App.js`'s `handleSetupDevice`) — fails silently for a truly
+  fresh Pi with no WiFi/REST reachable yet, which relies on its own
+  boot-time advertising window instead.
 - `GET /events` — added 2026-07-03, real (SSE, not WebSocket) stream of
   live archive-sync status, sourced by tailing teslausb's own
   `archiveloop.log` (`pi-service/src/lib/archive-events.js`) rather
