@@ -121,3 +121,37 @@ period this project was being designed.
     (music) — already fully configured via `/etc/fstab` and
     `/root/.teslaCamArchiveCredentials`, which are independent of
     `teslausb_setup_variables.conf` and were never at risk.
+
+15. **Real gap found 2026-07-03, not yet fixed: Tesla's own native
+    dashcam encryption isn't accounted for anywhere in this app.**
+    Tesla firmware 2026.20 (folder present since ~v2025.38) writes an
+    `EncryptedClips/{RecentClips,SavedClips,SentryClips}` tree
+    alongside the existing plaintext one, encrypted with a key tied to
+    the user's Tesla account — default **on**, toggleable off in
+    Controls > Safety > "Encrypt Dashcam Recordings". Decryption
+    normally happens via Tesla's own dashcam.tesla.com web tool (signs
+    in with the Tesla account, fetches the key, decrypts locally,
+    nothing uploaded); a reverse-engineered local decryption tool also
+    exists (github.com/XGxF3/tesla-dashcam-decrypt, documents the
+    eCryptfs scheme) but relying on unofficial reverse-engineered crypto
+    in a shipped product has real stability/legality tradeoffs worth
+    weighing deliberately, not something to pull in casually.
+    Confirmed via direct inspection that this maintainer's real test
+    car's `cam_disk.bin` does **not** currently have an `EncryptedClips`
+    folder (so not an active bug today), but since this is a
+    default-on, actively-rolling-out Tesla feature, any other real user
+    of this app could already have it. This surfaced from watching
+    upstream teslausb PR #1056 (open, unmerged as of 2026-07-03 —
+    marcone/teslausb's own `archiveloop`/`make_snapshot.sh` don't handle
+    this folder yet either), not from this project's own testing.
+    **Practical implication for this project**: this validates dropping
+    on-device encryption (docs/SECURITY.md) rather than contradicting
+    it — Tesla already solves the "protect footage before it's
+    archived" problem better than this project could have, using
+    vehicle-bound keys instead of Pi-managed ones. The open work is
+    narrower: `pi-service/src/lib/clips-scan.js` doesn't know
+    `EncryptedClips` exists, so a user with this feature on would see
+    fewer clips than actually exist, with no indication why. Scope not
+    yet decided — likely just needs to *list and allow downloading* the
+    raw encrypted files (so users can decrypt via Tesla's own tool
+    afterward), not attempt in-app decryption.

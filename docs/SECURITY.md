@@ -27,6 +27,18 @@ that upstream teslausb itself has zero encryption support to build on
 Kept below for reference in case this gets revisited, but it is **not
 planned work** as of this writing.
 
+**Update 2026-07-03 — this decision turned out to be validated, not
+just avoided:** Tesla's own vehicle firmware (2026.20+) now natively
+encrypts dashcam/Sentry footage before it ever reaches the USB drive
+(writes to a new `EncryptedClips/` tree, key tied to the user's Tesla
+account, default on). Tesla already solves the exact threat this
+section was trying to address — and solves it better, with real
+vehicle-bound key custody instead of a Pi-managed key. See
+docs/OPEN_QUESTIONS.md #15 for the real, separate follow-up this
+creates: `clips-scan.js` doesn't know `EncryptedClips` exists yet, so a
+user with this Tesla feature on would see fewer clips than actually
+exist.
+
 ## On-Pi encryption — narrow and transient, by design (original design, not built)
 
 Purpose: protect clips only during the brief window between "Tesla
