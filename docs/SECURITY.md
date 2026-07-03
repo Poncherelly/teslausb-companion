@@ -7,7 +7,27 @@ realistic threats (casual SD-card snooping, a stolen Pi, a stolen phone)
 not a sophisticated attacker with the physical SD card and unlimited
 time — and say so to users rather than overclaiming.
 
-## On-Pi encryption — narrow and transient, by design
+## On-Pi encryption — dropped (2026-07-03)
+
+**Investigated against the real teslausb architecture and abandoned.**
+The design below assumed some interception point between "Tesla writes
+a clip" and "archive-sync copies it off," but there isn't one: Tesla
+writes plaintext video directly to a raw FAT32 disk image
+(`cam_disk.bin`) over USB mass storage — a raw block device, not
+through any API this project can hook. Encrypting in-place would need
+either a background watcher racing the car's own writes (real
+corruption risk to a live, working USB gadget), or modifying/replacing
+`archiveloop` (upstream teslausb's own script) so archived copies get
+decrypted again before reaching the NAS — both against this project's
+"never modify teslausb's own code" rule and its general risk tolerance
+for the one physical device everything depends on. Confirmed separately
+that upstream teslausb itself has zero encryption support to build on
+(no config variables, no scripts, `cryptsetup` not even installed).
+
+Kept below for reference in case this gets revisited, but it is **not
+planned work** as of this writing.
+
+## On-Pi encryption — narrow and transient, by design (original design, not built)
 
 Purpose: protect clips only during the brief window between "Tesla
 writes it" and "archive-sync copies it off" — i.e. against someone

@@ -5,6 +5,20 @@ All notable changes to this project are documented here, following
 
 ## [Unreleased]
 
+### Removed
+- **On-device encryption of unarchived footage, dropped** (was a stated
+  core feature in the original design). Investigated against teslausb's
+  real architecture and abandoned: Tesla writes plaintext directly to a
+  raw FAT32 disk image over USB mass storage, with no interception
+  point that doesn't require either modifying `archiveloop` (against
+  this project's own rule) or replacing it entirely (a full archive
+  pipeline rewrite, risky against the one physical device everything
+  depends on). Also confirmed upstream teslausb has zero encryption
+  support to build on. See docs/SECURITY.md for the full reasoning —
+  kept there for reference in case this is ever revisited, but not
+  planned work. Updated CLAUDE.md, README.md, docs/ARCHITECTURE.md,
+  docs/OPEN_QUESTIONS.md to match.
+
 ### Added
 - **Music upload + delete**, both `source=archive` only. Found and
   reused the real, existing mechanism instead of building a new one:

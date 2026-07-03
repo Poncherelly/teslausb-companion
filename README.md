@@ -6,9 +6,9 @@ that turns a Raspberry Pi into a USB drive for a Tesla's dashcam/Sentry
 footage, with automatic archiving.
 
 This project adds a first-use BLE setup wizard, a mobile app for
-browsing/downloading/deleting clips and music, optional Tesla vehicle
-keep-awake integration, and transient on-device encryption of unarchived
-footage — all on top of an existing teslausb installation.
+browsing/downloading/deleting/uploading clips and music, and optional
+Tesla vehicle keep-awake integration — all on top of an existing
+teslausb installation.
 
 **Status: working, real, in daily use against real hardware** (a Pi
 Zero W running teslausb). Built and verified so far: BLE pairing +
@@ -16,12 +16,17 @@ WiFi/claim handoff, on-device clip browsing/download, an Archive tab
 with real archive-sync data (folder-drill Category -> Event -> Files,
 matching the real NAS structure), in-app video playback with
 Save-to-Photos and delete-once-archived, a Music tab with in-app
-streaming for both on-device and archived music, and a Settings tab
-covering device rename and archive destination configuration. See
-CHANGELOG.md for the detailed history. Not yet built: on-device
-encryption (despite being called out below — `encrypted_on_disk` is
-currently just a placeholder field), music upload, Tesla Fleet API
-integration, cloud/rclone archive destinations, and the zero-SSH
+streaming/upload/delete for both on-device and archived music, and a
+Settings tab covering device rename and archive destination
+configuration. See CHANGELOG.md for the detailed history.
+
+**Dropped:** on-device encryption of unarchived footage — investigated
+and abandoned 2026-07-03 given teslausb's real architecture (see
+docs/SECURITY.md); `encrypted_on_disk` remains a placeholder field.
+Possibly revisited someday, not planned work.
+
+**Not yet built:** Tesla Fleet API integration, cloud/rclone archive
+destinations, iOS build (Android-only so far), and the zero-SSH
 pi-gen-based distribution image (currently everything is installed by
 hand over SSH).
 

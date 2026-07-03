@@ -14,12 +14,20 @@ This project adds:
   both on the Pi and on the archive.
 - Optional Tesla vehicle integration to keep the car awake until an
   archive run completes.
-- Transient on-device encryption of unarchived footage.
 
-**Status as of this doc: pre-code.** Everything below reflects a completed
-design/planning phase. No implementation exists yet. Treat this as the
-source of truth for product decisions; treat actual code, once it exists,
-as the source of truth for implementation details.
+**Status: real, working, in daily use against real hardware.** See
+README.md and CHANGELOG.md for what's actually built. Treat this doc as
+the source of truth for product decisions; treat actual code as the
+source of truth for implementation details where they diverge.
+
+**Dropped (2026-07-03): transient on-device encryption of unarchived
+footage.** Investigated and abandoned — upstream teslausb has no
+encryption support at all (Tesla writes plaintext directly to a raw
+FAT32 disk image over USB mass storage; there's no interception point
+without either modifying teslausb's own `archiveloop` or replacing it
+entirely, both against this project's own constraints). See
+docs/SECURITY.md for the full reasoning. Possibly revisit someday, not
+actively planned.
 
 ## Hard constraints — read these before proposing anything
 
@@ -73,8 +81,7 @@ Decided 2026-07-01 (see [CHANGELOG.md](CHANGELOG.md)):
 - **Pi service** (`pi-service/`) — Node.js + Express (REST API),
   `@abandonware/bleno` for the BLE GATT peripheral role (the actively
   maintained fork; the original `bleno` is unmaintained and breaks on
-  modern BlueZ), Server-Sent Events for `GET /events`, Node's built-in
-  `crypto` module for on-device encryption.
+  modern BlueZ), Server-Sent Events for `GET /events`.
 - **Mobile app** (`app/`) — React Native via Expo, using a custom dev
   client / EAS Build (not classic Expo Go, which doesn't support the
   BLE native module), `react-native-ble-plx` for the BLE central role.

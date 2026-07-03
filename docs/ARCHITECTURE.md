@@ -3,8 +3,11 @@
 ## Components
 
 - **Pi service** — runs alongside existing teslausb scripts. Owns: BLE
-  GATT provisioning service, REST API, clip state machine, encryption,
-  archive-sync orchestration, storage watermark/cleanup logic.
+  GATT provisioning service, REST API, clip state machine, storage
+  watermark/cleanup logic. Does not orchestrate archive-sync itself —
+  that's `archiveloop`, teslausb's own unmodified process (see "Why the
+  app never talks to the archive directly" below). On-device encryption
+  was investigated and dropped — see docs/SECURITY.md.
 - **Mobile app** (iOS/Android) — talks to the Pi service only, never
   directly to a NAS or cloud archive. See "Why the app never talks to
   the archive directly" below.

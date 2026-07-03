@@ -23,9 +23,9 @@ period this project was being designed.
    rather than assuming; affects whether WiFi password writes need
    chunking after all.
 
-4. **Encryption performance on lowest-supported Pi hardware** (Pi Zero /
-   Zero 2 W) — benchmark before defaulting on-Pi encryption to "on" by
-   default; may need a lower-power default on weaker hardware.
+4. **Moot as of 2026-07-03** — on-Pi encryption itself was dropped (see
+   docs/SECURITY.md), so this performance-benchmarking question no
+   longer applies. Kept here in case encryption is ever revisited.
 
 5. **Tesla Fleet API pricing and discount amounts are not stable** —
    the discount has already changed once (from $10 to $14/month) during
