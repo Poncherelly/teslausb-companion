@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { PI_SERVICE_URL } from './config';
+import { subscribeToEvents } from './events';
 import { useTheme } from './theme';
 
 // Real logo (172x96, ~1.79:1 aspect ratio, background chroma-keyed
@@ -20,6 +21,7 @@ export default function AppBanner() {
   const styles = createStyles(theme);
   const [hostname, setHostname] = useState(null);
   const [connected, setConnected] = useState(null); // null = still checking
+  const [liveStatus, setLiveStatus] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +51,21 @@ export default function AppBanner() {
     };
   }, []);
 
+  // Live archive-sync status (GET /events, added 2026-07-03) — shows
+  // real activity (archiving, syncing music, waiting for the car to be
+  // idle) as an extra line under the hostname while something's
+  // happening, clearing once archiveloop reports it's finished.
+  useEffect(() => {
+    const unsubscribe = subscribeToEvents((event) => {
+      if (event.type === 'idle') {
+        setLiveStatus(null);
+      } else {
+        setLiveStatus(event.message);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   return (
     <View style={styles.banner}>
       <View style={styles.row}>
@@ -62,6 +79,7 @@ export default function AppBanner() {
         {connected === true && hostname}
         {connected === false && 'Pi not reachable'}
       </Text>
+      {liveStatus && <Text style={styles.liveStatus}>{liveStatus}</Text>}
     </View>
   );
 }
@@ -97,6 +115,12 @@ function createStyles(theme) {
     piName: {
       fontSize: 13,
       color: theme.textMuted,
+      marginTop: 2,
+      marginLeft: PILL_WIDTH + 10,
+    },
+    liveStatus: {
+      fontSize: 12,
+      color: theme.accent,
       marginTop: 2,
       marginLeft: PILL_WIDTH + 10,
     },

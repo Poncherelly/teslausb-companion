@@ -5,6 +5,14 @@ All notable changes to this project are documented here, following
 
 ## [Unreleased]
 
+### Added
+- App now consumes `GET /events` — `AppBanner.js` shows live
+  archive-sync status ("Archiving clips…", "Syncing music…", etc.)
+  under the hostname, clearing once the activity finishes. New
+  `app/events.js` (`subscribeToEvents`) is an XHR-based SSE client (RN's
+  `fetch` doesn't support incrementally reading a streaming response
+  body) — pure JS, no new native dependency, no EAS rebuild needed.
+
 ### Fixed
 - **Real bug, found while testing the new events feature below**: both
   `cam-mount.js` and `music-mount.js` held their read-only loop mounts
