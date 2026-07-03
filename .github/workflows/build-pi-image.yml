@@ -3,8 +3,10 @@ name: Build baseline teslausb Pi image
 # Milestone A of the pi-gen distribution work (see project plan/CHANGELOG):
 # builds teslausb's own existing image, unmodified, via its real upstream
 # pi-gen integration — no stage_companion yet. This validates the CI
-# mechanics (disk space, privileged Docker, ARM emulation, artifact/release
+# mechanics (disk space, ARM emulation via binfmt_misc, artifact/release
 # handling) in isolation before our own script risk gets added on top.
+# Runs pi-gen natively on the runner (build.sh), not via build-docker.sh —
+# see the "Install pi-gen build dependencies" step below for why.
 #
 # Manual trigger only, deliberately — this is a first, unproven attempt;
 # don't burn CI time or create noise on every push until it's reliable.
@@ -60,41 +62,45 @@ jobs:
 
       # prepare.sh checks that `readlink -f .` ends in /pi-gen, so it
       # must be run from inside that checkout, not just given a path to it.
+      # Its own final message says to use either "./build.sh" or
+      # "./build-docker.sh" — both are equally sanctioned by teslausb.
       - name: Prepare pi-gen with teslausb's stage
         working-directory: pi-gen
         run: ../teslausb/pi-gen-sources/prepare.sh
 
-      # Real finding, after reading build-docker.sh's actual source
-      # directly: the "qemu-arm not found" check runs directly in
-      # build-docker.sh on the HOST RUNNER — a plain `which qemu-arm` —
-      # before Docker is even invoked, not inside any container.
-      # qemu-user-binfmt provides that exact binary name, satisfying
-      # the check.
+      # Real finding after four failed attempts at build-docker.sh: that
+      # path builds pi-gen's OWN build container (an i386/debian:trixie
+      # image) and re-registers/re-mounts binfmt_misc *inside* it via
+      # `dpkg-reconfigure qemu-user-binfmt`. Since Linux supports multiple
+      # independent binfmt_misc instances per mount namespace, that
+      # container-side mount can end up entirely separate from whatever
+      # we registered on the host (via docker/setup-qemu-action or
+      # otherwise) — which is consistent with every host-side fix so far
+      # making zero difference to the exact same "armhf: not supported on
+      # this machine/kernel" failure from build.sh's arch-test, run
+      # inside that container.
       #
-      # But satisfying the check isn't the same as *working* emulation:
-      # the next run got past this check ("Registering qemu-arm for
-      # binfmt_misc...") but then failed pi-gen's actual functional test
-      # (build.sh's `arch-test`, both native *and* emulated) — meaning
-      # the registration that check ran didn't produce working
-      # emulation. That registration is wrapped in `|| true` in
-      # build-docker.sh, silently swallowing any failure. Rather than
-      # depend on that fragile inline attempt, also register QEMU via
-      # docker/setup-qemu-action first — it wraps tonistiigi/binfmt, the
-      # same well-established mechanism used across cross-arch CI
-      # generally, and known to work correctly on GitHub-hosted runners.
-      # With a real, working registration already in place, pi-gen's
-      # own later (possibly-failing) registration attempt becomes
-      # redundant rather than load-bearing.
-      - name: Register QEMU for ARM emulation
-        uses: docker/setup-qemu-action@v3
+      # ubuntu-latest runners are real, full Ubuntu VMs, not a
+      # Docker-only dev laptop (the reason build-docker.sh exists at all
+      # is to let pi-gen build from non-Debian hosts like macOS). So
+      # there's no need for that nested container here: install pi-gen's
+      # real dependency list (from its own `depends` file / README)
+      # straight onto the runner and run build.sh natively as root.
+      # apt's qemu-user-binfmt package registers binfmt_misc correctly
+      # via its own maintainer postinst scripts (standard, well-tested
+      # Debian/Ubuntu packaging) directly on the one filesystem/namespace
+      # that matters, with no nested-container mismatch possible.
+      - name: Install pi-gen build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            coreutils quilt parted qemu-user-binfmt debootstrap zerofree zip \
+            dosfstools e2fsprogs libarchive-tools libcap2-bin grep rsync \
+            xz-utils file git curl bc gpg pigz xxd arch-test bmap-tools kmod
 
-      - name: Install qemu-user-binfmt (qemu-arm on PATH)
-        run: sudo apt-get update && sudo apt-get install -y qemu-user-binfmt
-
-      # Recommended path per teslausb's own build docs.
       - name: Build image
         working-directory: pi-gen
-        run: sudo ./build-docker.sh
+        run: sudo ./build.sh
 
       - name: Locate built image
         id: locate
