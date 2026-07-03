@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import * as DocumentPicker from 'expo-document-picker';
 import { PI_SERVICE_URL } from './config';
 import { useTheme } from './theme';
 
@@ -100,6 +101,7 @@ export default function MusicBrowser() {
   const [entries, setEntries] = useState([]);
   const [error, setError] = useState(null);
   const [playingTrack, setPlayingTrack] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   function changeSource(next) {
     setSource(next);
@@ -115,7 +117,7 @@ export default function MusicBrowser() {
     });
   }
 
-  useEffect(() => {
+  function refresh() {
     let cancelled = false;
     fetch(`${PI_SERVICE_URL}/music?source=${source}&path=${encodeURIComponent(path)}`)
       .then((res) => res.json())
@@ -135,31 +137,107 @@ export default function MusicBrowser() {
     return () => {
       cancelled = true;
     };
-  }, [source, path]);
+  }
+
+  useEffect(refresh, [source, path]);
+
+  // Upload/delete only ever target the archive share — teslausb's own
+  // copy-music.sh then syncs changes down to the car on its own
+  // schedule (see pi-service/src/routes/music.js). Uploading directly
+  // to the on-device partition isn't supported since it's live-exposed
+  // to the car as a USB gadget.
+  async function handleUpload() {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'audio/*' });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', {
+        uri: asset.uri,
+        name: asset.name,
+        type: asset.mimeType || 'application/octet-stream',
+      });
+      const res = await fetch(
+        `${PI_SERVICE_URL}/music/upload?source=archive&path=${encodeURIComponent(path)}`,
+        { method: 'POST', body: formData }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      refresh();
+    } catch (err) {
+      Alert.alert('Upload failed', err.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleDelete(item) {
+    const filePath = path ? `${path}/${item.name}` : item.name;
+    Alert.alert('Delete this file?', `${item.name} will be removed from the archive.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const res = await fetch(
+              `${PI_SERVICE_URL}/music?source=archive&path=${encodeURIComponent(filePath)}`,
+              { method: 'DELETE' }
+            );
+            if (!res.ok && res.status !== 204) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data.error || 'Delete failed');
+            }
+            refresh();
+          } catch (err) {
+            Alert.alert('Delete failed', err.message);
+          }
+        },
+      },
+    ]);
+  }
 
   return (
     <View style={styles.container}>
       <SourceToggle source={source} onChange={changeSource} styles={styles} />
       <Breadcrumb path={path} onNavigate={setPath} styles={styles} />
+      {source === 'archive' && (
+        <Pressable style={styles.uploadButton} onPress={handleUpload} disabled={uploading}>
+          {uploading ? (
+            <ActivityIndicator color={theme.accent} />
+          ) : (
+            <Text style={styles.uploadButtonText}>+ Upload music here</Text>
+          )}
+        </Pressable>
+      )}
       {error && <Text style={styles.error}>Error: {error}</Text>}
       <FlatList
         data={entries}
         keyExtractor={(item) => item.name}
         renderItem={({ item }) => (
-          <Pressable
-            style={styles.row}
-            onPress={() =>
-              item.type === 'folder'
-                ? setPath(path ? `${path}/${item.name}` : item.name)
-                : playFile(item)
-            }
-          >
-            <Text style={styles.icon}>{item.type === 'folder' ? '📁' : '🎵'}</Text>
-            <View style={styles.rowText}>
-              <Text style={styles.name}>{item.name}</Text>
-              {item.type === 'file' && <Text style={styles.meta}>{formatSize(item.size)}</Text>}
-            </View>
-          </Pressable>
+          <View style={styles.row}>
+            <Pressable
+              style={styles.rowMain}
+              onPress={() =>
+                item.type === 'folder'
+                  ? setPath(path ? `${path}/${item.name}` : item.name)
+                  : playFile(item)
+              }
+            >
+              <Text style={styles.icon}>{item.type === 'folder' ? '📁' : '🎵'}</Text>
+              <View style={styles.rowText}>
+                <Text style={styles.name}>{item.name}</Text>
+                {item.type === 'file' && <Text style={styles.meta}>{formatSize(item.size)}</Text>}
+              </View>
+            </Pressable>
+            {source === 'archive' && item.type === 'file' && (
+              <Pressable style={styles.deleteButton} onPress={() => handleDelete(item)}>
+                <Text style={styles.deleteButtonText}>🗑</Text>
+              </Pressable>
+            )}
+          </View>
         )}
       />
       {playingTrack && (
@@ -227,13 +305,40 @@ function createStyles(theme) {
       marginHorizontal: 16,
       marginTop: 8,
     },
+    uploadButton: {
+      alignItems: 'center',
+      paddingVertical: 10,
+      marginHorizontal: 16,
+      marginTop: 10,
+      borderWidth: 1,
+      borderColor: theme.accent,
+      borderRadius: 8,
+      borderStyle: 'dashed',
+    },
+    uploadButtonText: {
+      fontSize: 14,
+      color: theme.accent,
+      fontWeight: '600',
+    },
     row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    rowMain: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       paddingVertical: 12,
       paddingHorizontal: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+    },
+    deleteButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    deleteButtonText: {
+      fontSize: 18,
     },
     icon: {
       fontSize: 20,

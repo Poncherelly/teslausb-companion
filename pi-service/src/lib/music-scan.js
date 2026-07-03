@@ -12,12 +12,48 @@ const IGNORED_ENTRIES = new Set(["System Volume Information", ".metadata_never_i
 
 // Resolves `relativePath` against the mount root and refuses to
 // escape it (e.g. "../../etc") — this is a public-ish API endpoint.
-function resolveSafePath(mountPoint, relativePath) {
+export function resolveSafePath(mountPoint, relativePath) {
   const target = path.normalize(path.join(mountPoint, relativePath || ""));
   if (target !== mountPoint && !target.startsWith(mountPoint + path.sep)) {
     return null;
   }
   return target;
+}
+
+// Filenames only (no slashes) — used both for the uploaded file's own
+// name and for validating a delete target, so a single check covers
+// both directions of path-traversal risk.
+export function isSafeFilename(name) {
+  return typeof name === "string" && name.length > 0 && !/[\\/]|\.\./.test(name);
+}
+
+// Deletes a single file (added 2026-07-03 for music delete) — only
+// ever called against the archive music share (see routes/music.js);
+// teslausb's own copy-music.sh rsyncs with --delete from there down to
+// the car's live music partition on its own schedule, so this never
+// touches the gadget-exposed on-device partition directly.
+export async function deleteMusicFile(mountPoint, relativePath) {
+  const filePath = resolveSafePath(mountPoint, relativePath);
+  if (!filePath) return false;
+  try {
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) return false;
+    await fs.unlink(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Resolves (and creates if missing) the destination folder for an
+// upload — same path-traversal protection as browseMusic, plus
+// creating intermediate folders since a user might upload into a new
+// artist/album folder that doesn't exist yet.
+export async function resolveUploadDir(mountPoint, relativePath) {
+  const dirPath = resolveSafePath(mountPoint, relativePath || "");
+  if (!dirPath) return null;
+  await fs.mkdir(dirPath, { recursive: true });
+  return dirPath;
 }
 
 // Resolves a specific file for streaming/download (added 2026-07-03 for

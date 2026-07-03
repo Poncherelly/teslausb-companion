@@ -135,7 +135,12 @@ export async function writeArchiveConfig({ server, shareName, musicShareName, sh
 
   const existingFstab = await fs.readFile(FSTAB_PATH, "utf8").catch(() => "");
   const clipsLine = buildFstabLine(server, shareName, CLIPS_MOUNT, "rw");
-  const musicLine = musicShareName ? buildFstabLine(server, musicShareName, MUSIC_MOUNT, "ro") : null;
+  // "rw" (not "ro") since 2026-07-03 — music upload/delete write here
+  // directly; teslausb's own copy-music.sh then rsyncs (with --delete)
+  // from this share down to the car's live music partition on its own
+  // schedule, so the app never has to touch the gadget-exposed
+  // partition directly. See routes/music.js.
+  const musicLine = musicShareName ? buildFstabLine(server, musicShareName, MUSIC_MOUNT, "rw") : null;
   await fs.writeFile(FSTAB_PATH, mergeFstab(existingFstab, clipsLine, musicLine));
 
   await fs.writeFile(CREDENTIALS_PATH, `username=${shareUser}\npassword=${sharePassword}\n`, { mode: 0o600 });

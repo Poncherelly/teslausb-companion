@@ -72,8 +72,19 @@ security model in STATE_MACHINES.md.
   protection as the folder browser). Powers `app/MusicBrowser.js`'s
   "Now Playing" bar (`expo-audio`'s `useAudioPlayer`/
   `useAudioPlayerStatus`).
-  `DELETE /music/{id}`, `PUT /settings/music`, upload are not
-  implemented yet.
+- `POST /music/upload?source=archive&path=<folder>` / `DELETE
+  /music?source=archive&path=<file>` — added 2026-07-03, **`source=archive`
+  only, `pi` rejected with 403**. Neither ever touches the on-device
+  `music_disk.bin` directly — that partition is live-exposed to the car
+  as a USB gadget, and writing to it while the car might have it
+  mounted risks corruption. Instead these write to/delete from the
+  archive music share, and teslausb's own `copy-music.sh` (already
+  running on the Pi, unmodified) rsyncs — with `--delete` — from there
+  down to the car's local partition on its own schedule. Upload is
+  multipart (`multer`, field name `file`); both validate the target
+  path/filename the same way the folder browser does
+  (`music-scan.js`'s `resolveUploadDir`/`deleteMusicFile`/
+  `isSafeFilename`). `PUT /settings/music` still not implemented.
 - `GET /archive/config`, `PUT /archive/config` — **revised 2026-07-02,
   scoped down from the original multi-destination
   `/archive/destinations` design** to match what's actually deployed:
