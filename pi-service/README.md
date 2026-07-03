@@ -32,3 +32,24 @@ Newer `node-gyp` versions require Python 3.8+ (a walrus-operator syntax
 error otherwise); older Pi OS images (e.g. Raspberry Pi OS 10 "Buster")
 only ship Python 3.7, so the whole tree is pinned to a node-gyp old
 enough to run there. See docs/OPEN_QUESTIONS.md #11.
+
+## Running on the Pi (auto-start on boot)
+
+`pi-service.service` in this directory is the real, working systemd
+unit (confirmed via a full reboot test, not just theory). It assumes
+the layout used on the actual test hardware — Node at
+`/home/pi/node/bin/node` (see docs/OPEN_QUESTIONS.md #9-10 for why an
+unofficial build lives outside the normal PATH), the service checked
+out at `/home/pi/pi-service`. Adjust `Environment=PATH=` and
+`WorkingDirectory=`/`ExecStart=` if your install location differs.
+
+```bash
+sudo /root/bin/remountfs_rw   # root fs is read-only by default
+sudo cp pi-service.service /etc/systemd/system/pi-service.service
+sudo systemctl enable pi-service
+sudo systemctl start pi-service
+```
+
+To deploy code changes afterward: `sudo systemctl restart pi-service`
+(no need to manually re-export `PATH` or re-run as root by hand — the
+unit already runs as root with the right `PATH`).
