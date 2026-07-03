@@ -64,9 +64,17 @@ jobs:
         working-directory: pi-gen
         run: ../teslausb/pi-gen-sources/prepare.sh
 
-      # Recommended path per teslausb's own build docs. pi-gen's own
-      # Dockerfile already bundles qemu-user-static/binfmt-support, so no
-      # separate ARM-emulation setup step is needed.
+      # Real finding from the first CI run: pi-gen's Dockerfile installs
+      # the qemu-user-static *binary* inside the build image, but the
+      # runner's host kernel still needs binfmt_misc registered
+      # separately before any container can actually execute ARM code —
+      # that's a host-level facility, not something an image can bundle
+      # on its own. Without this, build-docker.sh fails fast with
+      # "qemu-arm not found (please install qemu-user-binfmt)".
+      - name: Register QEMU for ARM emulation
+        uses: docker/setup-qemu-action@v3
+
+      # Recommended path per teslausb's own build docs.
       - name: Build image
         working-directory: pi-gen
         run: sudo ./build-docker.sh
