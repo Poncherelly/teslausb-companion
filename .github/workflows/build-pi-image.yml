@@ -64,20 +64,38 @@ jobs:
         working-directory: pi-gen
         run: ../teslausb/pi-gen-sources/prepare.sh
 
-      # Real finding from the first CI run: pi-gen's Dockerfile installs
-      # the qemu-user-static *binary* inside the build image, but the
-      # runner's host kernel still needs binfmt_misc registered
-      # separately before any container can actually execute ARM code —
-      # that's a host-level facility, not something an image can bundle
-      # on its own. Without this, build-docker.sh fails fast with
-      # "qemu-arm not found (please install qemu-user-binfmt)".
+      # Registers binfmt_misc handlers on the runner's host kernel so
+      # privileged containers can execute foreign-architecture (ARM)
+      # binaries at all.
       - name: Register QEMU for ARM emulation
         uses: docker/setup-qemu-action@v3
+
+      # Real finding from the first two CI runs: on x86_64/aarch64 hosts,
+      # build-docker.sh deliberately builds its pi-gen container FROM an
+      # i386 base image (see its own `case "$(uname -m)"` logic), and
+      # that Dockerfile only installs the qemu-user-static package
+      # (giving a binary named qemu-arm-static). pi-gen's own dependency
+      # check (the `depends` file's `qemu-arm:qemu-user-binfmt` entry)
+      # does a literal `command -v qemu-arm` lookup — a different binary
+      # name from a different package — so it fails even though
+      # kernel-level ARM emulation (registered above) genuinely works.
+      # docker/setup-qemu-action registers binfmt_misc on the host, but
+      # build-docker.sh's `docker run` has no bind-mounts of host
+      # directories, so a host-level fix alone never becomes visible
+      # inside the container's own filesystem. Fix: install the actual
+      # qemu-user-binfmt package on the runner, then bind-mount its
+      # qemu-arm binary into the exact path the container's dependency
+      # check looks for, via pi-gen's own PIGEN_DOCKER_OPTS escape hatch
+      # (spliced directly into build-docker.sh's `docker run` call).
+      - name: Install qemu-user-binfmt (real qemu-arm binary)
+        run: sudo apt-get update && sudo apt-get install -y qemu-user-binfmt
 
       # Recommended path per teslausb's own build docs.
       - name: Build image
         working-directory: pi-gen
-        run: sudo ./build-docker.sh
+        env:
+          PIGEN_DOCKER_OPTS: -v /usr/bin/qemu-arm:/usr/bin/qemu-arm:ro
+        run: sudo --preserve-env=PIGEN_DOCKER_OPTS ./build-docker.sh
 
       - name: Locate built image
         id: locate
