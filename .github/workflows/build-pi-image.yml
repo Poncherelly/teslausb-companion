@@ -86,17 +86,30 @@ jobs:
       # there's no need for that nested container here: install pi-gen's
       # real dependency list (from its own `depends` file / README)
       # straight onto the runner and run build.sh natively as root.
-      # apt's qemu-user-binfmt package registers binfmt_misc correctly
-      # via its own maintainer postinst scripts (standard, well-tested
-      # Debian/Ubuntu packaging) directly on the one filesystem/namespace
-      # that matters, with no nested-container mismatch possible.
+      #
+      # qemu-user-binfmt alone got build.sh's own top-level arch-test to
+      # pass ("armhf: ok" for emulated) but then debootstrap's *second*,
+      # separate arch check — `arch-test -c "$TARGET" "$ARCH"`, which
+      # execs from *inside* the target chroot directory, per debootstrap's
+      # own source — failed with "Unable to execute target architecture".
+      # qemu-user-binfmt's registration (via the plain dynamic
+      # /usr/bin/qemu-arm from the qemu-user package) isn't built for
+      # that: qemu-user-static ships purpose-built for exactly this
+      # debootstrap-into-a-foreign-chroot case, registering binfmt_misc
+      # via its own wrapper scripts (/usr/libexec/qemu-binfmt/arm-binfmt-P)
+      # designed to keep working when exec happens from inside a chroot
+      # with none of the host's filesystem visible. Installing both:
+      # qemu-user-binfmt provides the plain `qemu-arm` binary build.sh's
+      # own check does `which qemu-arm` for; qemu-user-static is what
+      # debootstrap's chroot-based check actually needs to succeed.
       - name: Install pi-gen build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            coreutils quilt parted qemu-user-binfmt debootstrap zerofree zip \
-            dosfstools e2fsprogs libarchive-tools libcap2-bin grep rsync \
-            xz-utils file git curl bc gpg pigz xxd arch-test bmap-tools kmod
+            coreutils quilt parted qemu-user-binfmt qemu-user-static \
+            debootstrap zerofree zip dosfstools e2fsprogs libarchive-tools \
+            libcap2-bin grep rsync xz-utils file git curl bc gpg pigz xxd \
+            arch-test bmap-tools kmod
 
       - name: Build image
         working-directory: pi-gen
