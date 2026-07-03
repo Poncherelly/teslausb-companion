@@ -72,6 +72,31 @@ jobs:
           ref: ${{ env.TESLAUSB_REF }}
           path: teslausb
 
+      # Real bug in teslausb's own script, reported upstream (see
+      # marcone/teslausb issue tracker): 00-teslausb-tweaks/00-run.sh
+      # unconditionally does `systemctl disable resize2fs_once`,
+      # `update-rc.d resize2fs_once remove`, and `rm
+      # /etc/init.d/resize2fs_once` inside an `on_chroot` block that
+      # aborts the whole build on the first failing command. Confirmed
+      # directly against RPi-Distro/raspberrypi-sys-mods (the package
+      # that historically provided that init script): zero references to
+      # resize2fs_once anywhere in its current source or history — it's
+      # a leftover from an older Raspberry Pi OS generation that no
+      # longer exists to be disabled/removed, so this now hard-fails any
+      # pi-gen build of teslausb's image, unrelated to CI mechanics.
+      #
+      # This patches our own ephemeral CI checkout only — never
+      # teslausb's actual repo — making those three specific commands
+      # tolerate already being gone, without changing what they do if the
+      # service ever does exist. Drop this once the upstream fix lands.
+      - name: Patch stale resize2fs_once references (reported upstream)
+        run: |
+          sed -i \
+            -e 's/^systemctl disable resize2fs_once$/systemctl disable resize2fs_once || true/' \
+            -e 's/^update-rc.d resize2fs_once remove$/update-rc.d resize2fs_once remove || true/' \
+            -e 's/^rm \/etc\/init.d\/resize2fs_once$/rm -f \/etc\/init.d\/resize2fs_once/' \
+            teslausb/pi-gen-sources/00-teslausb-tweaks/00-run.sh
+
       # prepare.sh checks that `readlink -f .` ends in /pi-gen, so it
       # must be run from inside that checkout, not just given a path to it.
       # Its own final message says to use either "./build.sh" or
