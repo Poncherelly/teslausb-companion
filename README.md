@@ -5,30 +5,38 @@ A companion mobile app and Pi-side service layer for
 that turns a Raspberry Pi into a USB drive for a Tesla's dashcam/Sentry
 footage, with automatic archiving.
 
-This project adds a first-use BLE setup wizard, a mobile app for
-browsing/downloading/deleting/uploading clips and music, and optional
-Tesla vehicle keep-awake integration — all on top of an existing
-teslausb installation.
+This project adds a first-use BLE setup wizard and a mobile app for
+browsing/downloading/deleting/uploading clips and music — all on top of
+an existing teslausb installation.
 
 **Status: working, real, in daily use against real hardware** (a Pi
-Zero W running teslausb). Built and verified so far: BLE pairing +
-WiFi/claim handoff, on-device clip browsing/download, an Archive tab
-with real archive-sync data (folder-drill Category -> Event -> Files,
-matching the real NAS structure), in-app video playback with
-Save-to-Photos and delete-once-archived, a Music tab with in-app
-streaming/upload/delete for both on-device and archived music, and a
-Settings tab covering device rename and archive destination
-configuration. See CHANGELOG.md for the detailed history.
+Zero W running teslausb), on both Android and iOS. Built and verified
+so far: BLE pairing + WiFi/claim handoff, on-device clip
+browsing/download, an Archive tab with real archive-sync data
+(folder-drill Category -> Event -> Files, matching the real NAS
+structure), in-app video playback with Save-to-Photos and
+delete-once-archived, a Music tab with in-app streaming/upload/delete
+for both on-device and archived music, a live archive-sync status
+banner, and a Settings tab covering device rename and archive
+destination configuration. See CHANGELOG.md for the detailed history.
 
 **Dropped:** on-device encryption of unarchived footage — investigated
 and abandoned 2026-07-03 given teslausb's real architecture (see
 docs/SECURITY.md); `encrypted_on_disk` remains a placeholder field.
-Possibly revisited someday, not planned work.
+Tesla vehicle keep-awake integration is also not planned for now — both
+possibly revisited someday if the app gains traction, neither is active
+work.
+
+**In progress:** a zero-SSH, flash-and-go distribution image
+(`.github/workflows/build-pi-image.yml`) — Milestone A builds
+teslausb's own unmodified image via CI to validate the pipeline itself;
+a `stage_companion` layering pi-service's setup on top comes next, then
+real-hardware verification. Currently everything still requires manual
+SSH setup until that lands.
 
 **Not yet built:** Tesla Fleet API integration, cloud/rclone archive
-destinations, iOS build (Android-only so far), and the zero-SSH
-pi-gen-based distribution image (currently everything is installed by
-hand over SSH).
+destinations (explored 2026-07-03, real complexity in the OAuth flow —
+deferred, not abandoned).
 
 ## Project docs
 

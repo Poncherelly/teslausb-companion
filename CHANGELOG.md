@@ -6,6 +6,31 @@ All notable changes to this project are documented here, following
 ## [Unreleased]
 
 ### Added
+- **pi-gen distribution work started (Milestone A)** —
+  `.github/workflows/build-pi-image.yml` builds teslausb's own
+  unmodified image via its real upstream pi-gen integration, triggered
+  manually, publishing a draft GitHub Release with the built `.img` as
+  an artifact. No `stage_companion`/pi-service yet — this milestone
+  only validates the CI pipeline itself (disk space, privileged Docker,
+  ARM emulation via pi-gen's own bundled qemu-user-static, artifact/
+  release handling) in isolation before our own script risk is added.
+  Both `RPi-Distro/pi-gen` and `marcone/teslausb` are pinned to specific
+  commits rather than floating branches, since teslausb pins no pi-gen
+  version itself and there's no regression history yet for a first
+  build. Local build was ruled out: this dev machine has neither Docker
+  nor WSL, and pi-gen's build is Linux-only. Planned via a researched,
+  primary-source-verified design (not secondhand summaries) that also
+  surfaced a real bug to fix in the next milestone: teslausb's own
+  `setup-teslausb` unconditionally sources
+  `/root/teslausb_setup_variables.conf` and hard-crashes on first boot
+  if it doesn't exist at all, which a from-scratch pi-gen image never
+  creates on its own (only installs the `.sample`) — `stage_companion`
+  will need to write a minimal stub. Also found teslausb's pi-gen build
+  now targets Debian Bookworm, not Buster (moved December 2024) — the
+  Buster-specific workarounds this project's own physical test Pi
+  needed (dead apt mirror, ARMv6-only unofficial Node builds) may not
+  all still apply and need re-verifying, not assuming, against a fresh
+  Bookworm build.
 - **`POST /system/pairing-mode` built for real** — was only speced
   before; the only way to re-open a closed 10-minute BLE pairing
   window used to be a full `systemctl restart pi-service`.
