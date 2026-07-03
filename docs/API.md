@@ -84,7 +84,12 @@ security model in STATE_MACHINES.md.
   multipart (`multer`, field name `file`); both validate the target
   path/filename the same way the folder browser does
   (`music-scan.js`'s `resolveUploadDir`/`deleteMusicFile`/
-  `isSafeFilename`). `PUT /settings/music` still not implemented.
+  `isSafeFilename`). `PUT /settings/music` **dropped 2026-07-03** — it
+  assumed `copy-music.sh` supports configurable sync modes
+  (`sync`/`overwrite`/`ignore` per the original `MusicSettings` entity
+  in docs/DATA_MODEL.md); it doesn't, upstream's script is a fixed
+  one-way mirror with no modes. There's nothing real for this endpoint
+  to control.
 - `GET /archive/config`, `PUT /archive/config` — **revised 2026-07-02,
   scoped down from the original multi-destination
   `/archive/destinations` design** to match what's actually deployed:
@@ -98,13 +103,20 @@ security model in STATE_MACHINES.md.
   docs/ARCHIVE_AND_TESLA.md. Implemented in
   `pi-service/src/lib/archive-config.js` / `src/routes/archive.js`.
 - `PUT /settings/archive-mode` — private/convenient toggle, revisitable
-  — not implemented yet, only one CIFS destination exists so there's no
-  mode to toggle between yet
+  — **deferred 2026-07-03**, not just "not implemented yet": only one
+  CIFS destination *type* exists (no cloud/rclone destinations built),
+  so a mode toggle would have nothing real to switch between. Revisit
+  once cloud archive destinations exist.
 - `GET /system/status` — hostname, version (storage used/free, queue
   depth, BLE state, Tesla token health still TODO)
 - `PUT /system/hostname` — rename the Pi, reboots to apply
 - `POST /system/pairing-mode` — explicit re-enable trigger, physical
   button or authenticated web UI action only
-- `GET /events` — SSE/WebSocket stream for live archive progress, BLE
-  state changes, Tesla wake status; drives live badge updates in the app
-  without polling
+- `GET /events` — added 2026-07-03, real (SSE, not WebSocket) stream of
+  live archive-sync status, sourced by tailing teslausb's own
+  `archiveloop.log` (`pi-service/src/lib/archive-events.js`) rather
+  than polling. Emits `{type, message}` where `type` is one of
+  `archiving`/`idle`/`error`/`unreachable`/`syncing_music`/`waiting`/
+  `waiting_idle`/`info`. BLE state changes and Tesla wake status are
+  not wired into it — those were aspirational at spec time and remain
+  unbuilt (Tier 2 doesn't exist at all yet).

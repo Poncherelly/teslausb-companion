@@ -1,8 +1,4 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import fs from "node:fs/promises";
-
-const execFileAsync = promisify(execFile);
+import { createLoopMount } from "./loop-mount.js";
 
 // teslausb stores recordings inside a raw FAT32 disk image
 // (cam_disk.bin) that it exposes to the car as a USB mass-storage
@@ -19,28 +15,7 @@ const CAM_DISK_IMAGE = "/backingfiles/cam_disk.bin";
 const MOUNT_POINT = "/tmp/cam-ro"; // under tmpfs — always writable even
 // though / is read-only by default (see docs/OPEN_QUESTIONS.md #9-11).
 
-let mountPromise = null;
-
-async function isMounted() {
-  const mounts = await fs.readFile("/proc/mounts", "utf8");
-  return mounts.includes(MOUNT_POINT);
-}
-
-async function mountCamDisk() {
-  if (await isMounted()) return MOUNT_POINT;
-
-  await fs.mkdir(MOUNT_POINT, { recursive: true });
-  const { stdout } = await execFileAsync("sudo", [
-    "/sbin/losetup", "-f", "-P", "--show", "-r", CAM_DISK_IMAGE,
-  ]);
-  const loopDevice = stdout.trim();
-  await execFileAsync("sudo", ["mount", "-o", "ro", `${loopDevice}p1`, MOUNT_POINT]);
-  return MOUNT_POINT;
-}
-
-// Mounts on first call and reuses the same mount for subsequent calls
-// within this process's lifetime — cheap to call from every request.
-export async function ensureCamMounted() {
-  if (!mountPromise) mountPromise = mountCamDisk();
-  return mountPromise;
-}
+// See loop-mount.js — auto-releases after idle rather than holding the
+// loop device for the life of the process, so it doesn't chronically
+// block archiveloop's own snapshot/fsck steps against the same image.
+export const ensureCamMounted = createLoopMount(CAM_DISK_IMAGE, MOUNT_POINT);

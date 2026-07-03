@@ -5,6 +5,35 @@ All notable changes to this project are documented here, following
 
 ## [Unreleased]
 
+### Fixed
+- **Real bug, found while testing the new events feature below**: both
+  `cam-mount.js` and `music-mount.js` held their read-only loop mounts
+  open for the entire life of the `pi-service` process, never
+  releasing them. Confirmed live that this chronically blocks
+  teslausb's own real operations on the same backing files — a
+  lingering on-device music browse mount made `archiveloop`'s
+  `copy-music.sh` fail to mount `/mnt/music` ("overlapping loop device
+  exists"), silently skipping music sync to the car for an entire
+  cycle. Both now auto-release after 30s of no requests
+  (`pi-service/src/lib/loop-mount.js`, shared by both), trading a
+  little re-mount latency for not chronically blocking teslausb.
+  Verified: mount stays active during use, confirmed released after
+  the idle window via `/proc/mounts`, and confirmed it re-mounts
+  correctly afterward.
+
+### Added
+- **`GET /events`** — real SSE stream of live archive-sync status,
+  sourced by tailing teslausb's own `archiveloop.log`
+  (`pi-service/src/lib/archive-events.js`) instead of polling. Verified
+  against a real, manually-triggered archive cycle (`force_sync.sh`):
+  captured the full real sequence end-to-end (waiting for archive →
+  reachable → archiving → finished → syncing music → finished).
+- **Dropped from the API spec** (not built, and not going to be):
+  `PUT /settings/archive-mode` (nothing to toggle — only one archive
+  destination type exists) and `PUT /settings/music` (assumed
+  `copy-music.sh` supports configurable sync modes; it's a fixed
+  one-way mirror with no modes at all).
+
 ### Removed
 - **On-device encryption of unarchived footage, dropped** (was a stated
   core feature in the original design). Investigated against teslausb's
