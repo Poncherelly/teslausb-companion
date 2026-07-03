@@ -97,6 +97,30 @@ export default function BlePairingScreen({ visible, onClose }) {
     let cancelled = false;
     managerRef.current = new BleManager();
 
+    // iOS's CBCentralManager needs a moment after creation to determine
+    // its real state (PoweredOn/Unauthorized/PoweredOff) — calling
+    // startDeviceScan before that resolves throws "BluetoothLE is in
+    // unknown state". Android doesn't hit this (its state resolves
+    // immediately), which is why it went uncaught until testing on a
+    // real iOS device.
+    function waitForPoweredOn() {
+      return new Promise((resolve, reject) => {
+        const subscription = managerRef.current.onStateChange((state) => {
+          if (state === 'PoweredOn') {
+            subscription.remove();
+            resolve();
+          } else if (state === 'Unauthorized') {
+            subscription.remove();
+            reject(new Error('Bluetooth permission was denied — enable it in Settings.'));
+          } else if (state === 'PoweredOff') {
+            subscription.remove();
+            reject(new Error('Bluetooth is turned off — turn it on to pair a device.'));
+          }
+          // 'Unknown' / 'Resetting' — not resolved yet, keep waiting.
+        }, true);
+      });
+    }
+
     async function start() {
       const ok = await requestAndroidBlePermissions();
       if (!ok) {
@@ -104,6 +128,16 @@ export default function BlePairingScreen({ visible, onClose }) {
         setErrorText('Bluetooth permissions were not granted.');
         return;
       }
+
+      try {
+        await waitForPoweredOn();
+      } catch (err) {
+        if (cancelled) return;
+        setStep('error');
+        setErrorText(err.message);
+        return;
+      }
+      if (cancelled) return;
 
       managerRef.current.startDeviceScan([SERVICE_UUID], null, async (scanError, device) => {
         if (cancelled) return;

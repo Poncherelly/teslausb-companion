@@ -5,6 +5,17 @@ All notable changes to this project are documented here, following
 
 ## [Unreleased]
 
+### Fixed
+- **First real iOS BLE bug**: pairing failed immediately with
+  "BluetoothLE is in unknown state" on a real iPhone (the first time
+  this code path had ever run on iOS — prior BLE testing was
+  Android-only). Root cause: `startDeviceScan` was called immediately
+  after creating the `BleManager`, but iOS's `CBCentralManager` needs a
+  moment to determine its real state (PoweredOn/Unauthorized/PoweredOff)
+  first; Android doesn't have this restriction, which is why it went
+  uncaught. Fixed by waiting for `onStateChange` to report `PoweredOn`
+  (or a clear error for Unauthorized/PoweredOff) before scanning.
+
 ### Added
 - App now consumes `GET /events` — `AppBanner.js` shows live
   archive-sync status ("Archiving clips…", "Syncing music…", etc.)
