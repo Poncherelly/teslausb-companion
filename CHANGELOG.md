@@ -6,6 +6,21 @@ All notable changes to this project are documented here, following
 ## [Unreleased]
 
 ### Added
+- **Music upload + delete**, both `source=archive` only. Found and
+  reused the real, existing mechanism instead of building a new one:
+  teslausb's own `copy-music.sh` already rsyncs (with `--delete`) from
+  the archive music share down to the car's live music partition on
+  its own schedule, so upload/delete only ever touch the archive share
+  — never `music_disk.bin` directly, which is live-exposed to the car
+  as a USB gadget and risky to write to directly. Required changing the
+  archive music fstab mount from `ro` to `rw` (`archive-config.js`).
+  New `POST /music/upload` (multipart, `multer`) and `DELETE /music`
+  endpoints; Music tab has an "Upload music here" button (archive view
+  only, `expo-document-picker`) and a delete icon per file row.
+  Verified end-to-end against the real archive share: upload created a
+  new folder + file, download streamed it back correctly, delete
+  removed it, and both on-device rejection and path-traversal attempts
+  were correctly blocked.
 - **Music playback** — tapping a file in the Music tab (previously a
   disabled no-op) now streams and plays it via a "Now Playing" bar
   (`expo-audio`'s `useAudioPlayer`/`useAudioPlayerStatus`, matching the
