@@ -18,8 +18,20 @@ on:
 # regression history yet to fall back on for a first build. Bump these
 # deliberately (re-verifying prepare.sh's assumptions still hold), not
 # accidentally.
+#
+# PI_GEN_REF specifically must stay bookworm-compatible: teslausb's own
+# pi-gen-config hardcodes RELEASE=bookworm (not ours to change — Milestone
+# A builds teslausb's image unmodified), but pi-gen's master has since
+# drifted to assume Raspberry Pi packages that only exist for their newer
+# "trixie" apt suite (rpi-swap, rpi-usb-gadget, rpi-connect-lite, etc. —
+# confirmed absent from archive.raspberrypi.com's bookworm suite entirely,
+# including its beta component). This pin (9ea6e44d..., "stage2: enable
+# pdiffs", 2025-06-05) is the last commit before "stage2: replace
+# dphys-swapfile with rpi-swap" (22601c0, 2025-08-19) introduced the first
+# such package — real, any user following teslausb's own build docs
+# ("clone pi-gen" with no pin) hits this exact break today.
 env:
-  PI_GEN_REF: 314262cb286b8f33327a6f0cbabe14c625021ca0
+  PI_GEN_REF: 9ea6e44d64a393563eeb4f51c0de864e5335b7c1
   TESLAUSB_REF: fb4ed15b46dc41a2ec7c8a7a2fe0783ce1d2ffd9
 
 jobs:
