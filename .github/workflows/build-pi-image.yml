@@ -64,66 +64,33 @@ jobs:
         working-directory: pi-gen
         run: ../teslausb/pi-gen-sources/prepare.sh
 
-      # Registers binfmt_misc handlers on the runner's host kernel so
-      # privileged containers can execute foreign-architecture (ARM)
-      # binaries at all.
-      - name: Register QEMU for ARM emulation
-        uses: docker/setup-qemu-action@v3
-
-      # Real finding from the first three CI runs, in order:
-      # 1. On x86_64/aarch64 hosts, build-docker.sh deliberately builds
-      #    its pi-gen container FROM an i386 base image (its own
-      #    `case "$(uname -m)"` logic). pi-gen's dependency check (the
-      #    `depends` file's `qemu-arm:qemu-user-binfmt` entry) does a
-      #    literal `command -v qemu-arm` lookup, and that name doesn't
-      #    exist in the container even though the Dockerfile installs
-      #    qemu-user-static (giving qemu-arm-static, a different name).
-      #    build-docker.sh's `docker run` has no host bind-mounts, so a
-      #    host-only registration (docker/setup-qemu-action) never
-      #    becomes visible inside the container's own filesystem.
-      # 2. First attempt at a fix bind-mounted qemu-user-binfmt's own
-      #    qemu-arm binary in under that name — the check passed, but
-      #    actual chroot execution then failed ("armhf: not supported on
-      #    this machine/kernel", both native and emulated). Root cause:
-      #    qemu-user-binfmt's qemu-arm is dynamically linked, so it can't
-      #    resolve its own shared libraries when invoked from inside a
-      #    chroot with a different filesystem. qemu-user-static's
-      #    qemu-arm-static (what the Dockerfile already installs) is
-      #    statically linked specifically to work across chroots — the
-      #    standard, correct choice for this use case.
-      # Fix: install qemu-user-static on the runner (giving a real,
-      # chroot-safe qemu-arm-static binary on the host), then bind-mount
-      # *that* binary under the path pi-gen's check expects
-      # (/usr/bin/qemu-arm) via pi-gen's own PIGEN_DOCKER_OPTS escape
-      # hatch (spliced directly into build-docker.sh's `docker run`).
-      - name: Install qemu-user-static (chroot-safe qemu-arm binary)
-        run: sudo apt-get update && sudo apt-get install -y qemu-user-static
-
-      # 4th CI run regressed back to "qemu-arm not found" — the fourth
-      # attempt hardcoded /usr/bin/qemu-arm-static as the bind-mount
-      # source, but that exact path apparently doesn't hold on this
-      # runner's qemu-user-static package layout. Stop guessing at
-      # paths: resolve the real installed location dynamically instead.
-      - name: Locate qemu-arm-static binary
-        id: locate_qemu
-        run: |
-          path=$(dpkg -L qemu-user-static | grep -E '/qemu-arm-static$' | head -n 1)
-          if [ -z "$path" ]; then
-            path=$(sudo find / -xdev -name 'qemu-arm-static' -type f 2>/dev/null | head -n 1)
-          fi
-          if [ -z "$path" ]; then
-            echo "Could not locate a qemu-arm-static binary anywhere" >&2
-            exit 1
-          fi
-          echo "Found: $path"
-          echo "path=$path" >> "$GITHUB_OUTPUT"
+      # Real finding, after reading build-docker.sh's actual source
+      # directly (not a secondhand summary — that's what cost several
+      # wrong turns before this): the "qemu-arm not found" check, and
+      # the binfmt_misc registration that follows it, BOTH run directly
+      # in build-docker.sh on the HOST RUNNER — via a plain `which
+      # qemu-arm` — before Docker is even invoked. They are not inside
+      # any container, so bind-mounting a binary into the eventual
+      # container (what the previous few fix attempts tried) never
+      # addressed the actual check at all. All that's needed is a real
+      # `qemu-arm` reachable on the runner's own PATH — the
+      # qemu-user-binfmt package provides exactly that name. The
+      # registration script itself is what matters for later chroot
+      # compatibility, not which package provides the binary: it
+      # registers binfmt_misc with the "F" flag, which fixes/pre-opens
+      # the interpreter's file descriptor at registration time (while
+      # still in the normal host filesystem, so dynamic linking
+      # resolves fine) and reuses that already-loaded image for every
+      # later invocation regardless of chroot — so the earlier
+      # "dynamically linked binaries can't work in chroots" concern
+      # doesn't actually apply to this specific registration mechanism.
+      - name: Install qemu-user-binfmt (qemu-arm on PATH)
+        run: sudo apt-get update && sudo apt-get install -y qemu-user-binfmt
 
       # Recommended path per teslausb's own build docs.
       - name: Build image
         working-directory: pi-gen
-        env:
-          PIGEN_DOCKER_OPTS: -v ${{ steps.locate_qemu.outputs.path }}:/usr/bin/qemu-arm:ro
-        run: sudo --preserve-env=PIGEN_DOCKER_OPTS ./build-docker.sh
+        run: sudo ./build-docker.sh
 
       - name: Locate built image
         id: locate
