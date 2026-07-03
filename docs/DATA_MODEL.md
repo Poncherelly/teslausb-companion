@@ -75,10 +75,14 @@ Single device-level setting: `private` | `convenient`. Gates which
 `SECURITY.md` for the UX and required disclaimer copy. This is a
 revisitable setting, not a one-time wizard choice — see ARCHIVE_AND_TESLA.md notes.
 
-## MusicSettings
+## MusicSettings — dropped (2026-07-03)
 
-- `mode`: `sync` | `overwrite` | `ignore`
-- `source_path`
+Assumed teslausb's music sync supported configurable modes. Confirmed
+against the real `/root/bin/copy-music.sh`: it's a fixed one-way mirror
+(`rsync -rum --delete` from the archive music share down to the car's
+local partition) with no modes at all. There's nothing real for a
+`mode`/`source_path` setting to control, so this entity and its
+corresponding `PUT /settings/music` (API.md) aren't being built.
 
 ## MusicEntry (added 2026-07-02, real-data-driven)
 
