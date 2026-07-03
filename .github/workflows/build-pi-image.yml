@@ -99,11 +99,30 @@ jobs:
       - name: Install qemu-user-static (chroot-safe qemu-arm binary)
         run: sudo apt-get update && sudo apt-get install -y qemu-user-static
 
+      # 4th CI run regressed back to "qemu-arm not found" — the fourth
+      # attempt hardcoded /usr/bin/qemu-arm-static as the bind-mount
+      # source, but that exact path apparently doesn't hold on this
+      # runner's qemu-user-static package layout. Stop guessing at
+      # paths: resolve the real installed location dynamically instead.
+      - name: Locate qemu-arm-static binary
+        id: locate_qemu
+        run: |
+          path=$(dpkg -L qemu-user-static | grep -E '/qemu-arm-static$' | head -n 1)
+          if [ -z "$path" ]; then
+            path=$(sudo find / -xdev -name 'qemu-arm-static' -type f 2>/dev/null | head -n 1)
+          fi
+          if [ -z "$path" ]; then
+            echo "Could not locate a qemu-arm-static binary anywhere" >&2
+            exit 1
+          fi
+          echo "Found: $path"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
       # Recommended path per teslausb's own build docs.
       - name: Build image
         working-directory: pi-gen
         env:
-          PIGEN_DOCKER_OPTS: -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm:ro
+          PIGEN_DOCKER_OPTS: -v ${{ steps.locate_qemu.outputs.path }}:/usr/bin/qemu-arm:ro
         run: sudo --preserve-env=PIGEN_DOCKER_OPTS ./build-docker.sh
 
       - name: Locate built image
