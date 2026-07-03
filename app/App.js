@@ -417,7 +417,6 @@ function createStyles(theme) {
     playerContainer: {
       flex: 1,
       backgroundColor: '#000',
-      justifyContent: 'center',
     },
     playerClose: {
       position: 'absolute',
@@ -435,13 +434,14 @@ function createStyles(theme) {
     },
     playerVideo: {
       width: '100%',
-      height: '100%',
+      flex: 1,
     },
     playerActions: {
       flexDirection: 'row',
       justifyContent: 'center',
       gap: 12,
-      paddingVertical: 16,
+      paddingTop: 16,
+      paddingBottom: 32,
       paddingHorizontal: 16,
     },
     playerActionButton: {
