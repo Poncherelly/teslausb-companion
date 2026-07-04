@@ -161,11 +161,18 @@ jobs:
         working-directory: pi-gen
         run: sudo ./build.sh
 
+      # Real bug found on the first successful build: `ls -1 | head -n 1`
+      # picked up "2026-07-03-teslausb.bmap" (a 15KB bmaptool sidecar
+      # file, sorted before the real image alphabetically) instead of the
+      # actual disk image, since pi-gen's deploy/ dir also contains .bmap/
+      # .info/.sha256sum sidecar files alongside the real artifact.
+      # Match the real image's extension directly instead of taking
+      # whatever sorts first.
       - name: Locate built image
         id: locate
         working-directory: pi-gen/deploy
         run: |
-          image_path=$(ls -1 | head -n 1)
+          image_path=$(ls -1 | grep -E '\.(zip|img|gz|xz)$' | head -n 1)
           if [ -z "$image_path" ]; then
             echo "No deploy artifact found" >&2
             exit 1
